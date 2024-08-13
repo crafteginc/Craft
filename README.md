@@ -63,7 +63,7 @@ Create and activate a virtual environment:
     ```
 
 7.Configure Django Settings:
-  - Open your `settings.py` file and configure the `DATABASES` setting to use PostgreSQL:
+   - Open your `settings.py` file and configure the `DATABASES` setting to use PostgreSQL:
      ```sh
      DATABASES = {
          'default': {
@@ -78,7 +78,6 @@ Create and activate a virtual environment:
      ```
   - Configure Keys and Secrets:
     - Open `settings.py` and add your configuration details:
-
     ```python
     # STRIPE
     STRIPE_SECRET_KEY = 'your_stripe_secret_key'
