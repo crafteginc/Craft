@@ -63,7 +63,7 @@ Create and activate a virtual environment:
     ```
 
 7.Configure Django Settings:
-   - Open your `settings.py` file and configure the `DATABASES` setting to use PostgreSQL:
+  - Open your `settings.py` file and configure the `DATABASES` setting to use PostgreSQL:
      ```sh
      DATABASES = {
          'default': {
@@ -76,14 +76,35 @@ Create and activate a virtual environment:
          }
      }
      ```
-   - and add your your keys like stripe . Locate the following section and replace the placeholders with your actual keys:
-    ```sh
+  - Configure Keys and Secrets:
+    - Open `settings.py` and add your configuration details:
+
+    ```python
     # STRIPE
     STRIPE_SECRET_KEY = 'your_stripe_secret_key'
     STRIPE_PUBLISHABLE_KEY = 'your_stripe_publishable_key'
     STRIPE_WEBHOOK_SECRET = 'your_stripe_webhook_secret'
+
+    # GOOGLE
+    GOOGLE_CLIENT_ID = 'your_google_client_id'
+    GOOGLE_CLIENT_SECRET = 'your_google_client_secret'
+
+    # SOCIAL AUTHENTICATION
+    SOCIAL_AUTH_PASSWORD = 'your_social_auth_password'
+    SOCIAL_AUTH_FACEBOOK_KEY = 'your_facebook_key'
+    SOCIAL_AUTH_FACEBOOK_SECRET = 'your_facebook_secret'
+
+    # EMAIL
+    EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
+    EMAIL_HOST_USER = 'your_email_host_user'
+    EMAIL_HOST_PASSWORD = 'your_email_host_password'
+    EMAIL_PORT = '587'
     ```
+
     - You can find your Stripe API keys in your Stripe Dashboard under the Developers section.
+    - Obtain Google Client ID and Client Secret from the Google Developers Console.
+    - Use the Mailtrap credentials for testing email functionality. For production, replace with your email service provider’s credentials.
+
 
 8. Run the development server:
     ```sh
