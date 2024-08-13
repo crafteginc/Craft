@@ -1,5 +1,4 @@
 # Craft Application
-
 The Craft application is a comprehensive platform that integrates multiple functionalities, including a social app, e-commerce app, courses app, and chat app. This extensive project features over 150 endpoints, ensuring seamless interaction and data flow between its various components. The application includes three distinct interfaces: Customer, Crafter, and Delivery, each tailored to meet the specific needs and workflows of its users.
 
 ## Table of Contents
@@ -33,28 +32,60 @@ To install and run the Craft application locally, follow these steps:
     ```sh
     git clone https://github.com/Waleeddarwesh/Craft.git
     ```
-
-2. Navigate to the project directory:
+2. Set Up a Virtual Environment
+Create and activate a virtual environment:
     ```sh
+    pip install virtualenv
+    virtualenv venv
     cd Craft
+    cd venv
+    Scripts/activate
+    cd..
+    ```
+3. Navigate to the project directory:
+    ```sh
+    cd Handcrafts
     ```
 
-3. Install the required dependencies:
+4. Install the required dependencies:
     ```sh
     pip install -r requirements.txt
     ```
 
-4. Apply the migrations:
+5. Apply the migrations:
     ```sh
     python manage.py migrate
     ```
 
-5. Create a superuser:
+6. Create a superuser:
     ```sh
     python manage.py createsuperuser
     ```
 
-6. Run the development server:
+7.Configure Django Settings:
+   - Open your `settings.py` file and configure the `DATABASES` setting to use PostgreSQL:
+     ```sh
+     DATABASES = {
+         'default': {
+             'ENGINE': 'django.db.backends.postgresql',
+             'NAME': 'swiftride_db',
+             'USER': 'swiftride_user',
+             'PASSWORD': 'your_password',
+             'HOST': 'localhost',
+             'PORT': '5432',
+         }
+     }
+     ```
+   - and add your your keys like stripe . Locate the following section and replace the placeholders with your actual keys:
+    ```sh
+    # STRIPE
+    STRIPE_SECRET_KEY = 'your_stripe_secret_key'
+    STRIPE_PUBLISHABLE_KEY = 'your_stripe_publishable_key'
+    STRIPE_WEBHOOK_SECRET = 'your_stripe_webhook_secret'
+    ```
+    - You can find your Stripe API keys in your Stripe Dashboard under the Developers section.
+
+8. Run the development server:
     ```sh
     python manage.py runserver
     ```
