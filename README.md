@@ -77,7 +77,7 @@ Create and activate a virtual environment:
      }
      ```
   - Configure Keys and Secrets:
-    - Open `settings.py` and add your configuration details:
+    - Open `settings.py` and add your configuration details: 
     ```python
     # STRIPE
     STRIPE_SECRET_KEY = 'your_stripe_secret_key'
