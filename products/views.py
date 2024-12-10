@@ -15,9 +15,8 @@ from rest_framework.views import APIView
 from rest_framework .exceptions import ValidationError
 from accounts.models import Supplier
 from .permissions import *
-from keras.models import load_model
 from PIL import Image
-import numpy as np
+
 
 class Categories(APIView):
     #permission_classes = [permissions.IsAuthenticated]
@@ -142,98 +141,3 @@ class CollectionViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(supplier=self.request.user.supplier)
 
     permission_classes = [IsSupplier]
-
-model = load_model('model.h5')
-def preprocess_image(image_path, target_size):
-    try:
-        # Load the image
-        image = Image.open(image_path)
-
-        # Convert the image to RGB
-        rgb_image = image.convert("RGB")
-
-        # Resize the RGB image
-        resized_image = rgb_image.resize(target_size)
-
-        # Convert the RGB image to a NumPy array
-        image_array = np.array(resized_image)
-
-        # Normalize the image by dividing pixel values by 255
-        mean_value = 0.5
-        std_value = 0.5
-        image_array = (image_array - mean_value) / std_value
-
-        # Add batch dimension
-        image_array = np.expand_dims(image_array, axis=0)
-
-        return image_array
-    except Exception as e:
-        print(f"Error preprocessing image: {str(e)}")
-        return None
-
-def make_prediction(image_arr):
-    # Make predictions using the loaded model
-    prediction = model.predict(image_arr)
-
-    # Get the predicted class label index and confidence
-    index_largest_value = np.argmax(prediction[0])
-    confidence = prediction[0][index_largest_value]
-
-    return index_largest_value, confidence
-
-class ImageUploadView(APIView):
-    def post(self, request, format=None):
-        serializer = ImageUploadSerializer(data=request.data)
-        if serializer.is_valid():
-            # Preprocess the image
-            image_arr = preprocess_image(serializer.validated_data['upload'], target_size=(244,244))
-
-            # Handle error if image preprocessing fails
-            if image_arr is None:
-                return Response({"error": "Error processing image."}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Make predictions
-            index, confidence = make_prediction(image_arr)
-
-            # Get the predicted class label
-            classes = [
-                "bamboo",
-                "candles",
-                "carpets",
-                "crocheting",
-                "jewelry",
-                "leather",
-                "pottery",
-                "sewing",
-                "soap",
-                "wooden",
-            ]
-            result = classes[index]
-
-            # # Check if the confidence is below the threshold
-            threshold = 0.4 # Set your desired confidence threshold here
-            # After getting the result and confidence
-            if confidence >= threshold:
-                # Search for related products in the database
-                related_products = Product.objects.filter(Category__Title=result)
-
-                # You might want to limit the number of related products returned
-                related_products = related_products[:10]  # Adjust the number as needed
-
-                # Serialize the related products to return them as JSON
-                # Assuming you have a serializer for your Product model
-                related_products_serializer = AcountProductSerializer(related_products, many=True)
-
-                return Response({
-                    "prediction": result,
-                    "confidence": float(confidence),
-                    "related_products": related_products_serializer.data
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response({
-                    "related_products": []
-                }, status=status.HTTP_200_OK)
-
-        # If serializer is not valid
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
