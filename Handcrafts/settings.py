@@ -51,21 +51,21 @@ INSTALLED_APPS = [
 ]
 
 #STRIPE
-STRIPE_SECRET_KEY = #use your KEY
-STRIPE_PUBLISHABLE_KEY = #use your KEY
-STRIPE_WEBHOOK_SECRET = #use your KEY
+STRIPE_SECRET_KEY = 'sk_test_51PVhW3Ruzd5caPY0sQvASyRNQw2fZG9S333H7oYl6R3QuYWHFNzGkxakPwLGleb16DSNN1mxcniLbDg21rJeonT800OikLGNqw'
+STRIPE_PUBLISHABLE_KEY = 'pk_test_51PVhW3Ruzd5caPY0S3XDtAv51PxSu2nSYCLVL2C168LOVJ5U3z73hxOkD0GoeIodJtOZFTdlt6ghqa0NlC6AtI7l00YJyGdekj'
+STRIPE_WEBHOOK_SECRET = 'whsec_67f96b05e1a4377a27a49a3b932b3b130e6fd523c9dc03e02a37caf5bed6cdba'
 
-GOOGLE_CLIENT_ID= #use your KEY
-GOOGLE_CLIENT_SECRET=#use your KEY
-SOCIAL_AUTH_PASSWORD=#use your password
+GOOGLE_CLIENT_ID="538228859657-u8el2po0kiefkggrsi4gtog6jrdj91do.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="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"
+SOCIAL_AUTH_PASSWORD="12345678"
 
 EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_HOST_USER = #use your KEY
-EMAIL_HOST_PASSWORD = #use your password
+EMAIL_HOST_USER = 'b41f95b7a394e2'
+EMAIL_HOST_PASSWORD = '73ae604151780f'
 EMAIL_PORT = '587'
 
-SOCIAL_AUTH_FACEBOOK_KEY = #use your KEY
-SOCIAL_AUTH_FACEBOOK_SECRET = #use your KEY
+SOCIAL_AUTH_FACEBOOK_KEY = '770235291829528'
+SOCIAL_AUTH_FACEBOOK_SECRET = '30cc0836c451f2ead4d8e7ec90a1e564'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -158,13 +158,9 @@ CHANNEL_LAYERS = {
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'your_db_name',          # Replace with your PostgreSQL database name
-        'USER': 'your_db_user',          # Replace with your PostgreSQL username
-        'PASSWORD': 'your_db_password',  # Replace with your PostgreSQL password
-        'HOST': 'localhost',             # Or the IP address of your PostgreSQL server
-        'PORT': '5432',                  # Default PostgreSQL port
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": "db.sqlite3",
     }
 }
 
