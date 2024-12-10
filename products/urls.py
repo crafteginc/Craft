@@ -15,6 +15,5 @@ urlpatterns = [
     path('categories/',Categories.as_view()),
     path('Materials/',Mataterials.as_view()),
     path('ProductsByMaterials/<slug:Slug>/',ProductsByMaterials.as_view()),
-    path('uploadImage/', ImageUploadView.as_view(), name='upload_image'),
 
 ]
