@@ -9,10 +9,10 @@ ENV PYTHONUNBUFFERED 1
 # Install PostgreSQL development libraries and build dependencies
 RUN apt-get update && apt-get install -y libpq-dev gcc
 
-# Copy the requirements file and install dependencies
+# Copy the requirements file and install dependencies globally
 COPY requirements1.txt .
 
-RUN pip install -r requirements1.txt
+RUN pip install --no-cache-dir -r requirements1.txt
 
 # Copy the rest of the application code
 COPY . .
