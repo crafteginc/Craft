@@ -1,4 +1,5 @@
 import os 
+import dj_database_url
 from datetime import timedelta
 from pathlib import Path
 
@@ -12,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-_qypz^00_)q5$=i_16^5k#f5)w67#s12_i8x9zlhn5mwt15k&h'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*', 'http://localhost:3000']
 
@@ -158,10 +159,7 @@ CHANNEL_LAYERS = {
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": "db.sqlite3",
-    }
+    'default': dj_database_url.config(default=os.getenv('postgresql://postgres:NXDGelQcZNBmSVsfEPHpgwAQZMKoLBOe@junction.proxy.rlwy.net:58374/railway'))
 }
 
 
