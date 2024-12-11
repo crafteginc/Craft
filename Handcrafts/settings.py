@@ -15,7 +15,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default-secret-key')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*', 'http://localhost:3000']
+ALLOWED_HOSTS = ['*', 'your-railway-app-name.railway.app']
 
 
 # Application definition
@@ -82,10 +82,10 @@ REST_FRAMEWORK = {
 # SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
 #    'fields': 'id, name, email'
 
-# CORS_ALLOWED_ORIGINS = [
-#    "http://localhost:3000",
-#    "http://127.0.0.1:3000"
-# ]
+CORS_ALLOWED_ORIGINS = [
+    "https://your-railway-app-name.railway.app",
+]
+
 
 SIMPLE_JWT = {# third party 
     'ACCESS_TOKEN_LIFETIME': timedelta(days=15),
@@ -133,21 +133,34 @@ TEMPLATES = [
     },
 ]
 
-ALLOWED_HOSTS = ["*"]
+
 
 WSGI_APPLICATION = 'Handcrafts.wsgi.application'
 
 ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
-#this can be used in Production
-# CHANNEL_LAYERS = {
-#     'default': {
-#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
-#         'CONFIG': {
-#             "hosts": [('127.0.0.1', 6379)],
-#         },
-#     },
-# }
+# Redis connection settings
+REDIS_URL = os.getenv('REDIS_URL')
+
+# Using Redis for caching
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+# Using Redis for sessions (optional)
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
+# If you're using Redis for Celery (optional)
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+
 
 CHANNEL_LAYERS = {
     'default': {
