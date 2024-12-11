@@ -26,7 +26,8 @@ else :
     DEBUG = False
 
 
-ALLOWED_HOSTS = ['*']#, 'craft.railway.app'
+ALLOWED_HOSTS = ['localhost','craft.up.railway.app','127.0.0.1']
+CSRF_TRUSTED_ORIGINS = ["https://craft.up.railway.app"]
 
 
 # Application definition
@@ -187,7 +188,7 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
-POSTGRES_LOCALLY = False
+POSTGRES_LOCALLY = True
 if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True:
     DATABASES['default'] = dj_database_url.parse(env('DATABASE_URL'))
 
