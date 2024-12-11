@@ -5,9 +5,14 @@ from django.views.decorators.csrf import csrf_exempt
 from course.models import Course, Customer, Enrollment
 from orders.models import Order,User
 from returnrequest.models import transactions
+from orders.craft import get_craft_user_by_email
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
-Craft = User.objects.get(email = "CraftEG@Craft.com")
+Craft = get_craft_user_by_email("CraftEG@craft.com")
+if Craft:
+    print("User found:", Craft)
+else:
+    print("User not found.")
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body

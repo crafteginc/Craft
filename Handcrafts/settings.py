@@ -2,6 +2,13 @@ import os
 import dj_database_url
 from datetime import timedelta
 from pathlib import Path
+from environ import Env
+
+env = Env()
+env.read_env()
+ENVIRONMENT = env('ENVIRONMENT',default='production')
+
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -10,12 +17,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'default-secret-key')
+SECRET_KEY = env('SECRET_KEY', default='your-default-secret-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+if ENVIRONMENT=='development':
+    DEBUG = True
+else :
+    DEBUG = False
 
-ALLOWED_HOSTS = ['*', 'craft.railway.app']
+
+ALLOWED_HOSTS = ['*']#, 'craft.railway.app'
 
 
 # Application definition
@@ -52,21 +63,21 @@ INSTALLED_APPS = [
 ]
 
 #STRIPE
-STRIPE_SECRET_KEY = 'sk_test_51PVhW3Ruzd5caPY0sQvASyRNQw2fZG9S333H7oYl6R3QuYWHFNzGkxakPwLGleb16DSNN1mxcniLbDg21rJeonT800OikLGNqw'
-STRIPE_PUBLISHABLE_KEY = 'pk_test_51PVhW3Ruzd5caPY0S3XDtAv51PxSu2nSYCLVL2C168LOVJ5U3z73hxOkD0GoeIodJtOZFTdlt6ghqa0NlC6AtI7l00YJyGdekj'
-STRIPE_WEBHOOK_SECRET = 'whsec_67f96b05e1a4377a27a49a3b932b3b130e6fd523c9dc03e02a37caf5bed6cdba'
+STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY')
+STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY')
+STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET')
 
-GOOGLE_CLIENT_ID="538228859657-u8el2po0kiefkggrsi4gtog6jrdj91do.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="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"
-SOCIAL_AUTH_PASSWORD="12345678"
+GOOGLE_CLIENT_ID=env('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET=env('GOOGLE_CLIENT_SECRET')
+SOCIAL_AUTH_PASSWORD=env('SOCIAL_AUTH_PASSWORD')
 
-EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_HOST_USER = 'b41f95b7a394e2'
-EMAIL_HOST_PASSWORD = '73ae604151780f'
-EMAIL_PORT = '587'
+EMAIL_HOST = env('EMAIL_HOST')
+EMAIL_HOST_USER = env('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
+EMAIL_PORT = env('EMAIL_PORT')
 
-SOCIAL_AUTH_FACEBOOK_KEY = '770235291829528'
-SOCIAL_AUTH_FACEBOOK_SECRET = '30cc0836c451f2ead4d8e7ec90a1e564'
+SOCIAL_AUTH_FACEBOOK_KEY = env('SOCIAL_AUTH_FACEBOOK_KEY')
+SOCIAL_AUTH_FACEBOOK_SECRET = env('SOCIAL_AUTH_FACEBOOK_SECRET')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -83,7 +94,7 @@ REST_FRAMEWORK = {
 #    'fields': 'id, name, email'
 
 CORS_ALLOWED_ORIGINS = [
-    "https://your-railway-app-name.railway.app",
+    "https://craft-production.up.railway.app",
 ]
 
 
@@ -101,7 +112,6 @@ AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -172,8 +182,14 @@ CHANNEL_LAYERS = {
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
 }
+POSTGRES_LOCALLY = False
+if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True:
+    DATABASES['default'] = dj_database_url.parse(env('DATABASE_URL'))
 
 
 # Password validation
@@ -212,7 +228,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 # You may want to define the location for static files (for production)
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = ''
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'

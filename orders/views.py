@@ -20,7 +20,7 @@ from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist
 from returnrequest.models import transactions
 from .permissions import DeliveryContractProvided
-
+from .craft import get_craft_user_by_email
 class WishlistViewSet(viewsets.ModelViewSet):
     queryset = Wishlist.objects.all()
     serializer_class = WishlistSerializer
@@ -105,7 +105,11 @@ class CartItemViewSet(viewsets.ModelViewSet):
             # If user already has a cart, just save the item with that cart
             serializer.save(user=user, CartID=cart)
 
-Craft = User.objects.get(email = "CraftEG@Craft.com")      
+Craft = get_craft_user_by_email("CraftEG@craft.com")
+if Craft:
+    print("User found:", Craft)
+else:
+    print("User not found.")
 class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.ListModelMixin,viewsets.GenericViewSet):
     serializer_class = OrderCreateSerializer
     queryset = Order.objects.all()

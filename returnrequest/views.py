@@ -16,8 +16,13 @@ from django.db.models import Q
 from rest_framework.decorators import action
 from django.utils import timezone
 from django.db import transaction
+from orders.craft import get_craft_user_by_email
 
-Craft = User.objects.get(email = "CraftEG@Craft.com")      
+Craft = get_craft_user_by_email("CraftEG@craft.com")
+if Craft:
+    print("User found:", Craft)
+else:
+    print("User not found.")   
 class ReturnRequestViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = ReturnRequestCreateSerializer
     queryset = ReturnRequest.objects.all()
