@@ -2,9 +2,9 @@ FROM python:3.11.9
 WORKDIR /app
 ENV PYTHONUNBUFFERED 1
 
-COPY requirements1.txt .
+COPY requirements.txt .
 
-RUN pip install -r requirements1.txt
+RUN pip install -r requirements.txt
 
 COPY . .
 
