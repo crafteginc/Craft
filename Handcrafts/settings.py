@@ -150,7 +150,7 @@ WSGI_APPLICATION = 'Handcrafts.wsgi.application'
 ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
 # Redis connection settings
-REDIS_URL = os.getenv('REDIS_URL')
+REDIS_URL = env('REDIS_URL')
 
 # Using Redis for caching
 CACHES = {
