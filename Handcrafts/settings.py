@@ -15,7 +15,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default-secret-key')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*', 'your-railway-app-name.railway.app']
+ALLOWED_HOSTS = ['*', 'craft.railway.app']
 
 
 # Application definition
