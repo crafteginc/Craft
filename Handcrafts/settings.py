@@ -98,7 +98,7 @@ REST_FRAMEWORK = {
 #    'fields': 'id, name, email'
 
 CORS_ALLOWED_ORIGINS = [
-    "https://craft-production.up.railway.app",
+    "https://craft.up.railway.app",
 ]
 
 
@@ -153,10 +153,9 @@ WSGI_APPLICATION = 'Handcrafts.wsgi.application'
 
 ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
-# Redis connection settings
 REDIS_URL = env('REDIS_URL')
 
-# Using Redis for caching
+# Caching
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -167,18 +166,21 @@ CACHES = {
     }
 }
 
-# Using Redis for sessions (optional)
+# Sessions
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
 
-# If you're using Redis for Celery (optional)
+# Celery
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 
-
+# Channel Layers
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [REDIS_URL],
+        },
     },
 }
 
