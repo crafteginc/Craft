@@ -5,11 +5,10 @@ from pathlib import Path
 from environ import Env
 
 env = Env()
-env.read_env()
 ENVIRONMENT = env('ENVIRONMENT',default='production')
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-
+# get the env file back to the normal place in the root
+env.read_env(env_file=BASE_DIR / '.env')
 # Quick-start  settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
