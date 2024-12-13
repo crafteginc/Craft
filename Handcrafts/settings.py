@@ -7,9 +7,6 @@ from environ import Env
 env = Env()
 env.read_env()
 ENVIRONMENT = env('ENVIRONMENT',default='production')
-
-
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
