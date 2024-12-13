@@ -5,10 +5,9 @@ from pathlib import Path
 from environ import Env
 
 env = Env()
-env.read_env(env_file=BASE_DIR / '.env')
 ENVIRONMENT = env('ENVIRONMENT',default='production')
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+env.read_env(env_file=BASE_DIR / '.env')
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY', default='your-default-secret-key')
