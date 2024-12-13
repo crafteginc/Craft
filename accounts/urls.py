@@ -13,7 +13,7 @@ router.register('delivery-documents', deliveryDocumentViewSet, basename='supplie
 
 urlpatterns = [
     path('register_customer/', RegisterViewforcustomer.as_view(), name='register_customer'),
-    path('register_Supplier/', RegisterViewforSupplier.as_view(), name='register_Supplier'),
+    path('register_supplier/', RegisterViewforSupplier.as_view(), name='register_Supplier'),
     path('register_delivery/', RegisterViewforDelivery.as_view(), name='register_delivery'),
     path('auth-google/', GoogleOauthSignInview.as_view(), name='auth-google'),
     path('verify_email/', VerifyUserEmail.as_view(), name='verify_email'),
