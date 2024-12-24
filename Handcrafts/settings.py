@@ -87,9 +87,7 @@ REST_FRAMEWORK = {
 # SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
 #    'fields': 'id, name, email'
 
-CORS_ALLOWED_ORIGINS = [
-    "https://craft.up.railway.app",
-]
+CORS_ALLOW_ALL_ORIGINS = TRUE
 
 
 SIMPLE_JWT = {# third party 
