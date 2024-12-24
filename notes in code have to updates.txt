@@ -1,0 +1,2 @@
+ first problem in User Model in function save() there are no usage for it execpt if we want to add another logic before save the object of user .
+ 

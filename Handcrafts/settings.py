@@ -18,9 +18,8 @@ if ENVIRONMENT=='development':
 else :
     DEBUG = False
 
-
 ALLOWED_HOSTS = ['localhost','craft.up.railway.app','127.0.0.1']
-CSRF_TRUSTED_ORIGINS = ["https://craft.up.railway.app"]
+CSRF_TRUSTED_ORIGINS = ["https://craft.up.railway.app", "http://craft.up.railway.app"]
 
 
 # Application definition
@@ -327,9 +326,10 @@ REST_FRAMEWORK = {
 # SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
 #    'fields': 'id, name, email'
 
-CORS_ALLOWED_ORIGINS = [
-    "https://craft.up.railway.app",
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "https://craft.up.railway.app",
+# ]
+CORS_ALLOW_ALL_ORIGINS = True
 
 
 SIMPLE_JWT = {# third party 
