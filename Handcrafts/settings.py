@@ -1,4 +1,3 @@
-
 import os 
 import dj_database_url
 from datetime import timedelta
@@ -23,7 +22,6 @@ CSRF_TRUSTED_ORIGINS = ["https://craft.up.railway.app", "http://craft.up.railway
 
 
 # Application definition
-
 INSTALLED_APPS = [
     'admin_interface',
     'colorfield',
