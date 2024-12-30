@@ -88,19 +88,43 @@ class RegisterViewforDelivery(GenericAPIView):
 class VerifyUserEmail(GenericAPIView):
     def post(self, request):
         try:
+            # استرجاع البيانات المُدخلة
             passcode = request.data.get('otp')
-            user_pass_obj=OneTimePassword.objects.get(otp=passcode)
-            user=user_pass_obj.user
-            if not user.is_verified:
-                user.is_verified=True
-                user.save()
-                return Response({
-                    'message':'account email verified successfully'
-                }, status=status.HTTP_200_OK)
-            return Response({'message':'passcode is invalid user is already verified'}, status=status.HTTP_204_NO_CONTENT)
-        except OneTimePassword.DoesNotExist as identifier:
-            return Response({'message':'passcode not provided'}, status=status.HTTP_400_BAD_REQUEST)
+            email = request.data.get('email')
 
+            if not passcode or not email:
+                return Response(
+                    {'message': 'Both email and OTP are required.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user_pass_obj = OneTimePassword.objects.filter(otp=passcode, user__email=email).first()
+
+            if not user_pass_obj:
+                return Response(
+                    {'message': 'Invalid OTP or email provided.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user = user_pass_obj.user
+
+            if user.is_verified:
+                return Response(
+                    {'message': 'User is already verified.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.is_verified = True
+            user.save()
+            # حذف الـ OTP بعد الاستخدام الناجح
+            user_pass_obj.delete()
+            return Response(
+                {'message': 'Account email verified successfully.'}, 
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'message': f'An error occurred: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 class LoginUserView(GenericAPIView):
     serializer_class=LoginSerializer
     def post(self, request):
