@@ -36,7 +36,7 @@ class RegisterViewforcustomer(GenericAPIView):
         if not re.match(r'^(010|011|012|015)\d{8}$', str(PhoneNO)):
             return Response({'error': 'the phone number you entered is invalid'}, status=status.HTTP_400_BAD_REQUEST)
         serializer=self.serializer_class(data=user)
-        if serializer.is_valid(raise_exception=True):
+        if serializer.is_valid():
             serializer.save()
             user_data=serializer.data
             send_generated_otp_to_email(user_data['email'], request)
@@ -55,7 +55,7 @@ class RegisterViewforSupplier(GenericAPIView):
         if not re.match(r'^(010|011|012|015)\d{8}$', PhoneNO):
             return Response({'error': 'the phone number you entered is invalid'}, status=status.HTTP_400_BAD_REQUEST)
         serializer=self.serializer_class(data=user)
-        if serializer.is_valid(raise_exception=True):
+        if serializer.is_valid():
             serializer.save()
             user_data=serializer.data
             send_generated_otp_to_email(user_data['email'], request)
@@ -74,7 +74,7 @@ class RegisterViewforDelivery(GenericAPIView):
         if not re.match(r'^(010|011|012|015)\d{8}$', phone_number):
             return Response({'error': 'the phone number you entered is invalid'}, status=status.HTTP_400_BAD_REQUEST)
         serializer=self.serializer_class(data=user)
-        if serializer.is_valid(raise_exception=True):
+        if serializer.is_valid():
             serializer.save()
             user_data=serializer.data
             send_generated_otp_to_email(user_data['email'], request)
@@ -107,6 +107,7 @@ class LoginUserView(GenericAPIView):
         serializer= self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
     
 class CustomerProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -353,9 +354,10 @@ class LogoutApiView(GenericAPIView):
 
     def post(self, request):
         serializer=self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        serializer.is_valid()
         serializer.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class GoogleOauthSignInview(GenericAPIView):
     serializer_class=GoogleSignInSerializer
