@@ -44,7 +44,8 @@ class RegisterViewforcustomer(GenericAPIView):
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
             }, status=status.HTTP_201_CREATED)
-        return Response({'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
 
 class RegisterViewforSupplier(GenericAPIView):
     serializer_class = SupplierRegistrationSerializer
@@ -62,7 +63,8 @@ class RegisterViewforSupplier(GenericAPIView):
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
             }, status=status.HTTP_201_CREATED)
-        return Response({'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
 
 class RegisterViewforDelivery(GenericAPIView):
     serializer_class =DeliveryRegistrationSerializer
@@ -80,7 +82,8 @@ class RegisterViewforDelivery(GenericAPIView):
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
             }, status=status.HTTP_201_CREATED)
-        return Response({'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
     
 class VerifyUserEmail(GenericAPIView):
     def post(self, request):
@@ -124,7 +127,8 @@ class CustomerProfileAPIView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
 
 class SupplierProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -144,7 +148,8 @@ class SupplierProfileAPIView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
 
 class DeliveryProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -165,7 +170,8 @@ class DeliveryProfileAPIView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
     
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
@@ -394,7 +400,8 @@ class SupplierDocumentViewSet(viewsets.ViewSet):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
 
 class deliveryDocumentViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -408,10 +415,11 @@ class deliveryDocumentViewSet(viewsets.ViewSet):
         try:
             delivery = request.user.delivery
         except Delivery.DoesNotExist:
-            return Response({'error': 'delivery profile does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'message': 'delivery profile does not exist.'}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = deliveryDocumentSerializer(delivery, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
