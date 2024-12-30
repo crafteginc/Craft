@@ -44,7 +44,7 @@ class RegisterViewforcustomer(GenericAPIView):
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
             }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 class RegisterViewforSupplier(GenericAPIView):
     serializer_class = SupplierRegistrationSerializer
@@ -62,7 +62,7 @@ class RegisterViewforSupplier(GenericAPIView):
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
             }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 class RegisterViewforDelivery(GenericAPIView):
     serializer_class =DeliveryRegistrationSerializer
@@ -80,7 +80,7 @@ class RegisterViewforDelivery(GenericAPIView):
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
             }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
 class VerifyUserEmail(GenericAPIView):
     def post(self, request):
@@ -296,7 +296,7 @@ class PasswordResetRequestView(APIView):
             user = User.objects.get(email=email)
             # Check if a recent password reset request exists
             if user.last_password_reset_request is not None and now() - user.last_password_reset_request < timedelta(minutes=1):
-                return Response({"error": "Please wait 1 minute before attempting another password reset."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+                return Response({"message": "Please wait 1 minute before attempting another password reset."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
             
             # Generate OTP
             otp = random.randint(1000, 9999)
@@ -315,7 +315,7 @@ class PasswordResetRequestView(APIView):
 
             return Response({"message": "OTP sent to your email for password reset."}, status=status.HTTP_200_OK)
         else:
-            return Response({"error": "User with that email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "User with that email does not exist."}, status=status.HTTP_404_NOT_FOUND)
 class SetNewPasswordView(APIView):
     serializer_class = SetNewPasswordSerializer
     def patch(self, request):
@@ -326,12 +326,12 @@ class SetNewPasswordView(APIView):
         confirm_password = serializer.validated_data['confirm_password']
 
         if new_password != confirm_password:
-            return Response({"error": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
 
         otp_record = OneTimePassword.objects.filter(otp=otp).first()
 
         if not otp_record or otp_record.user.last_login > otp_record.created_at:
-            return Response({"error": "Invalid OTP or OTP has expired."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Invalid OTP or OTP has expired."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = otp_record.user
         user.set_password(new_password)
