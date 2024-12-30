@@ -105,8 +105,11 @@ class LoginUserView(GenericAPIView):
     serializer_class=LoginSerializer
     def post(self, request):
         serializer= self.serializer_class(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        if serializer.is_valid():
+         return Response(serializer.data, status=status.HTTP_200_OK)
+        errors = [msg for error_list in serializer.errors.values() for msg in error_list]
+        return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
+        
     
     
 class CustomerProfileAPIView(APIView):
