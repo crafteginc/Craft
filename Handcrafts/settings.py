@@ -142,6 +142,10 @@ WSGI_APPLICATION = 'Handcrafts.wsgi.application'
 ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
 REDIS_URL = env('REDIS_URL')
+REDIS_PASSWORD = env('REDIS_PASSWORD')
+REDIS_HOST = env('REDISHOST')
+REDIS_PORT = env('REDISPORT')
+REDIS_USER = env('REDISUSER')
 
 
 CACHES = {
@@ -169,8 +173,8 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [("junction.proxy.rlwy.net", 51308)],
-            "password": "fZmeDyIygtFiJIPgqnrmiMcvApsBHRCP",
+            'hosts': [(REDIS_HOST, REDIS_PORT)],
+            'password': REDIS_PASSWORD,
         },
     },
 }
