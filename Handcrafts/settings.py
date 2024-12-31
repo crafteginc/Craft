@@ -142,37 +142,32 @@ WSGI_APPLICATION = 'Handcrafts.wsgi.application'
 ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
 REDIS_URL = env('REDIS_URL')
-
-
+# Caching
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL ,  
+        'LOCATION': REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        },
-    },
+        }
+    }
 }
-
-
 # Sessions
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
-
-
 # Celery
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
-
 # Channel Layers
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts':  [(REDIS_URL)],
+            'hosts': [REDIS_URL],
         },
     },
 }
+
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
