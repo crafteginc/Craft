@@ -144,23 +144,15 @@ ASGI_APPLICATION = 'Handcrafts.asgi.application'
 REDIS_URL = env('REDIS_URL')
 
 
-
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-        'LOCATION': 'my_cache_table',
-    },
-    'redis': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,  
+        'LOCATION': [REDIS_URL] ,  
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
-    }
+        },
+    },
 }
-
-# Use the Redis cache as the default cache
-CACHES['default'] = CACHES['redis']
 
 
 # Sessions
@@ -177,7 +169,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': REDIS_URL,
+            'hosts': [REDIS_URL],
         },
     },
 }
