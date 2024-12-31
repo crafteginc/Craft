@@ -150,7 +150,6 @@ CACHES = {
         'LOCATION': REDIS_URL ,  
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PASSWORD': env('REDIS_PASSWORD') ,  # Optional if not in URL
         },
     },
 }
