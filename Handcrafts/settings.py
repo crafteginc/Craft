@@ -143,20 +143,23 @@ ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
 REDIS_URL = env('REDIS_URL')
 
-# Caching
+
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,
+        'LOCATION': REDIS_URL ,  
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
-    }
+            'PASSWORD': env('REDIS_PASSWORD') ,  # Optional if not in URL
+        },
+    },
 }
+
 
 # Sessions
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
+
 
 # Celery
 CELERY_BROKER_URL = REDIS_URL
