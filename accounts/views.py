@@ -28,25 +28,36 @@ from .serializers import GoogleSignInSerializer
 from asgiref.sync import sync_to_async
 
 class ResendOtp(GenericAPIView):
-    serializer_class=EmailVerificationSerializer
-    def post(self,request):
-        serializer=self.serializer_class(data=request.data)
+    serializer_class = EmailVerificationSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
         if serializer.is_valid(raise_exception=True):
-             email = serializer.validated_data['email']
+            email = serializer.validated_data['email']
+            
         if User.objects.filter(email=email).exists():
-            user=User.objects.get(email=email)
+            user = User.objects.get(email=email)
             otp = random.randint(1000, 9999)
             OneTimePassword.objects.update_or_create(user=user, defaults={'otp': otp})
-            # Send email asynchronously
+
+            # Send email
             subject = "One time Passcode for Email Verification"
-            email_body = f"Hi {user.first_name} thanks for signing up on CraftEG Please Verify your Email with the \n one time passcode {otp}"
+            email_body = (
+                f"Hi {user.first_name},\n"
+                f"Thanks for signing up on CraftEG. Please verify your email with the "
+                f"one-time passcode: {otp}"
+            )
             from_email = settings.EMAIL_HOST_USER
             to_email = [user.email]
-            send_email_async(subject, email_body, from_email, to_email)
+            
+            email = EmailMessage(subject, email_body, from_email, to_email)
+            email.send()  # This line sends the email
+
             user.save()
             return Response({"message": "OTP sent to your email."}, status=status.HTTP_200_OK)
         else:
-            return Response({"message": "Error occured."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Error occurred."}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 class RegisterViewforCustomer(GenericAPIView):
@@ -337,11 +348,6 @@ class FollowSupplier(APIView):
             return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
         
           
-async def send_email_async(subject, email_body, from_email, to_email):
-    """
-    وظيفة غير متزامنة لإرسال البريد الإلكتروني باستخدام Django EmailMessage.
-    """
-    email = EmailMessage(subject, email_body, from_email, to_email)
 
 class PasswordResetRequestView(APIView):
     serializer_class = EmailVerificationSerializer
@@ -353,7 +359,6 @@ class PasswordResetRequestView(APIView):
         
         if User.objects.filter(email=email).exists():
             user = User.objects.get(email=email)
-            # Check if a recent password reset request exists
             if user.last_password_reset_request is not None and now() - user.last_password_reset_request < timedelta(minutes=1):
                 return Response({"message": "Please wait 1 minute before attempting another password reset."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
             
@@ -361,12 +366,26 @@ class PasswordResetRequestView(APIView):
             otp = random.randint(1000, 9999)
             OneTimePassword.objects.update_or_create(user=user, defaults={'otp': otp})
 
-            # Send email asynchronously
-            subject = "One time passcode for Password Reset"
-            email_body = f"Hi {user.first_name}, use this OTP to reset your password: {otp}"
+            # Email content
+            subject = "One-Time Passcode for Password Reset"
+            email_body = (
+                f"Hi {user.first_name},\n\n"
+                f"You requested to reset your password. Use the following OTP to reset it:\n\n"
+                f"{otp}\n\n"
+                f"If you did not request this, please ignore this email.\n\n"
+                f"Best regards,\n"
+                f"Your Team"
+            )
             from_email = settings.EMAIL_HOST_USER
             to_email = [user.email]
-            send_email_async(subject, email_body, from_email, to_email)
+            
+            # Send email
+            try:
+                send = EmailMessage(subject, email_body, from_email, to_email)
+                send.send()
+            except Exception as e:
+                return Response({"message": "Failed to send email. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
             # Update last password reset request time
             user.last_password_reset_request = now()
             user.save()
@@ -374,6 +393,7 @@ class PasswordResetRequestView(APIView):
             return Response({"message": "OTP sent to your email for password reset."}, status=status.HTTP_200_OK)
         else:
             return Response({"message": "User with that email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
 class SetNewPasswordView(APIView):
     serializer_class = SetNewPasswordSerializer
     def patch(self, request):
