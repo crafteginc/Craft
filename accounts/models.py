@@ -10,6 +10,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.utils import timezone
 from django.utils.timezone import now
 from datetime import datetime   
+from django.core.exceptions import ValidationError
 
 AUTH_PROVIDERS ={'email':'email', 'google':'google', 'github':'github', 'linkedin':'linkedin'}
 
@@ -48,6 +49,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         }
     def __str__(self):
         return self.email
+    def clean(self):
+        if User.objects.filter(email__iexact=self.email).exists():
+            raise ValidationError("This email is already in use.")
     
     def save(self, *args, **kwargs):
      if self.email:
