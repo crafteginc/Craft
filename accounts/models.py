@@ -8,6 +8,7 @@ from .maneger import UserManager
 from django.contrib.auth.hashers import make_password
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.utils import timezone
+from django.utils.timezone import now
 from datetime import datetime   
 
 AUTH_PROVIDERS ={'email':'email', 'google':'google', 'github':'github', 'linkedin':'linkedin'}
@@ -161,7 +162,7 @@ def Update_FollowersNO(sender,instance,created, **kwargs):
 class OneTimePassword(models.Model):
     user=models.OneToOneField(User, on_delete=models.CASCADE)
     otp=models.CharField(max_length=6)
-    created_at = models.DateTimeField(default=datetime.now)
+    created_at = models.DateTimeField(default=now)
 
 
 
