@@ -94,7 +94,6 @@ class RegisterViewforSupplier(GenericAPIView):
         if serializer.is_valid():
             serializer.save()
             user_data = serializer.data
-            # استخدام دالة غير متزامنة لإرسال البريد الإلكتروني
             send_generated_otp_to_email(user_data['email'], request)
             return Response({
                 'data': user_data,
