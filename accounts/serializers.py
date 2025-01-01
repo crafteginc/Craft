@@ -52,9 +52,9 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
 
     def save(self, **kwargs):
         user = User(
-            email=self.validated_data[str('email')],
-            first_name=self.validated_data['first_name'],
-            last_name=self.validated_data['last_name'],
+            email=self.validated_data['email'].lower(),
+            first_name=self.validated_data['first_name'].title(),
+            last_name=self.validated_data['last_name'].title(),
             PhoneNO=self.validated_data['PhoneNO'],
             is_customer=True
         )
@@ -91,9 +91,9 @@ class SupplierRegistrationSerializer(serializers.ModelSerializer):
     
     def save(self, **kwargs):
         user = User(
-            email=self.validated_data[str('email')],
-            first_name=self.validated_data['first_name'],
-            last_name=self.validated_data['last_name'],
+            email=self.validated_data['email'].lower(),
+            first_name=self.validated_data['first_name'].title(),
+            last_name=self.validated_data['last_name'].title(),
             PhoneNO=self.validated_data['PhoneNO'],
             is_supplier=True
         )
@@ -129,9 +129,9 @@ class DeliveryRegistrationSerializer(serializers.ModelSerializer):
     
     def save(self, **kwargs):
         user = User(
-            email=self.validated_data[str('email')],
-            first_name=self.validated_data['first_name'],
-            last_name=self.validated_data['last_name'],
+            email=self.validated_data['email'].lower(),
+            first_name=self.validated_data['first_name'].title(),
+            last_name=self.validated_data['last_name'].title(),
             is_delivery=True
         )
         user.password = self.validated_data['password']  # Hash the password
@@ -157,7 +157,7 @@ class LoginSerializer(serializers.ModelSerializer):
 
 
     def validate(self, attrs):
-        email = attrs.get(str('email'))
+        email = attrs.get('email').lower()
         password = attrs.get('password')
         request=self.context.get('request')
         user = authenticate(request, email=email, password=password)
