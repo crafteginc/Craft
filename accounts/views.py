@@ -63,8 +63,9 @@ class RegisterViewforCustomer(GenericAPIView):
     
     def post(self, request):
         user = request.data
+        if not user.get('PhoneNO'):
+            return Response({'message': 'Phone Number is required'}, status=status.HTTP_400_BAD_REQUEST)   
         PhoneNO = user.get('PhoneNO', None)
-        
         if not re.match(r'^(010|011|012|015)\d{8}$', str(PhoneNO)):
             return Response({'error': 'the phone number you entered is invalid'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -86,6 +87,8 @@ class RegisterViewforSupplier(GenericAPIView):
     
     def post(self, request):
         user = request.data
+        if not user.get('PhoneNO'):
+            return Response({'message': 'Phone Number is required'}, status=status.HTTP_400_BAD_REQUEST)     
         PhoneNO = user.get('PhoneNO', None)
         if not re.match(r'^(010|011|012|015)\d{8}$', PhoneNO):
             return Response({'message': 'the phone number you entered is invalid'}, status=status.HTTP_400_BAD_REQUEST)
@@ -107,6 +110,8 @@ class RegisterViewforDelivery(GenericAPIView):
     serializer_class =DeliveryRegistrationSerializer
     def post(self, request):
         user = request.data
+        if not user.get('PhoneNO'):
+            return Response({'message': 'Phone Number is required'}, status=status.HTTP_400_BAD_REQUEST)   
         phone_number = user.get('PhoneNO', None)
         if not re.match(r'^(010|011|012|015)\d{8}$', phone_number):
             return Response({'message': 'the phone number you entered is invalid'}, status=status.HTTP_400_BAD_REQUEST)
