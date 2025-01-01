@@ -20,7 +20,7 @@ class UserManager(BaseUserManager):
             raise ValueError(_("First name is required"))
         if not last_name:
             raise ValueError(_("Last name is required"))
-
+        
         user = self.model(email=email, first_name=first_name, last_name=last_name,**extra_fields)
         user.set_password(password)
         user.save(using=self._db)
