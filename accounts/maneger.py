@@ -12,8 +12,8 @@ class UserManager(BaseUserManager):
 
     def create_user(self, email, first_name, last_name, password, **extra_fields):
         if email:
-            email = self.normalize_email(email)
-            self.email_validator(email)
+            email = self.normalize_email(email).lower()
+            self.email_validator(email.lower())
         else:
             raise ValueError(_("Base User Account: An email address is required"))
         if not first_name:
@@ -21,7 +21,7 @@ class UserManager(BaseUserManager):
         if not last_name:
             raise ValueError(_("Last name is required"))
         
-        user = self.model(email=email, first_name=first_name, last_name=last_name,**extra_fields)
+        user = self.model(email=email.lower(), first_name=first_name, last_name=last_name,**extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
