@@ -122,7 +122,8 @@ class RegisterViewforDelivery(GenericAPIView):
             }, status=status.HTTP_201_CREATED)
         errors = [msg for error_list in serializer.errors.values() for msg in error_list]
         return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
-    class VerifyUserEmail(GenericAPIView):
+    
+class VerifyUserEmail(GenericAPIView):
     def post(self, request):
         try:
             # استرجاع البيانات المُدخلة
@@ -169,7 +170,8 @@ class LoginUserView(GenericAPIView):
         serializer= self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    class CustomerProfileAPIView(APIView):
+    
+class CustomerProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def get_object(self, user):
         try:
@@ -233,7 +235,8 @@ class DeliveryProfileAPIView(APIView):
             return Response(serializer.data)
         errors = [msg for error_list in serializer.errors.values() for msg in error_list]
         return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
-    class StandardResultsSetPagination(PageNumberPagination):
+    
+class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 100
@@ -273,8 +276,8 @@ class TrendingSuppliersAPIView(APIView):
     def get(self, request, format=None):
         trending_suppliers = Supplier.objects.order_by('-Rating','-Orders')[:10]  # Fetch top 10 suppliers based on rating
         serializer = CraftersSerializer(trending_suppliers, many=True)
-        return Response(serializer.data)  
-
+        return Response(serializer.data)
+    
 class SupplierDetail(APIView):
     def get(self, request, pk):
         supplier = get_object_or_404(Supplier, pk=pk)
@@ -342,7 +345,7 @@ class FollowSupplier(APIView):
         except Exception as e:
             return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
         
-          class PasswordResetRequestView(APIView):
+class PasswordResetRequestView(APIView):
     serializer_class = EmailVerificationSerializer
 
     def post(self, request):
@@ -410,8 +413,8 @@ class SetNewPasswordView(APIView):
 
         otp_record.delete()  # Delete OTP record after successful password reset
 
-        return Response({"message": "Password reset successful."}, status=status.HTTP_200_OK) 
-
+        return Response({"message": "Password reset successful."}, status=status.HTTP_200_OK)
+    
 class LogoutApiView(GenericAPIView):
     serializer_class=LogoutUserSerializer
     permission_classes = [IsAuthenticated]
