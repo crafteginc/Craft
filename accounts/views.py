@@ -25,7 +25,6 @@ import random
 from django.conf import settings
 from .models import User, OneTimePassword
 from .serializers import GoogleSignInSerializer
-import asyncio
 from asgiref.sync import sync_to_async
 
 class ResendOtp(GenericAPIView):
@@ -50,24 +49,30 @@ class ResendOtp(GenericAPIView):
             return Response({"message": "Error occured."}, status=status.HTTP_404_NOT_FOUND)
 
 
-class RegisterViewforcustomer(GenericAPIView):
+class RegisterViewforCustomer(GenericAPIView):
     serializer_class = CustomerRegistrationSerializer
+    
     async def post(self, request):
         user = request.data
         PhoneNO = user.get('PhoneNO', None)
+        
         if not re.match(r'^(010|011|012|015)\d{8}$', str(PhoneNO)):
             return Response({'error': 'the phone number you entered is invalid'}, status=status.HTTP_400_BAD_REQUEST)
-        serializer=self.serializer_class(data=user)
+        
+        serializer = self.serializer_class(data=user)
         if serializer.is_valid():
             serializer.save()
-            user_data=serializer.data
+            user_data = serializer.data
+            # إرسال OTP عبر البريد الإلكتروني بشكل غير متزامن
             await send_generated_otp_to_email(user_data['email'], request)
             return Response({
-                'data':user_data,
-                'message':'thanks for signing up a passcode has be sent to verify your email'
+                'data': user_data,
+                'message': 'Thanks for signing up! A passcode has been sent to verify your email.'
             }, status=status.HTTP_201_CREATED)
+        
         errors = [msg for error_list in serializer.errors.values() for msg in error_list]
         return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class RegisterViewforSupplier(GenericAPIView):
     serializer_class = SupplierRegistrationSerializer
