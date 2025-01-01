@@ -60,7 +60,6 @@ class ResendOtp(GenericAPIView):
 
 class RegisterViewforCustomer(GenericAPIView):
     serializer_class = CustomerRegistrationSerializer
-    
     def post(self, request):
         user = request.data        
         serializer = self.serializer_class(data=user)

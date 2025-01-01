@@ -39,6 +39,12 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         model = User
         fields = ('email', 'first_name', 'last_name', 'password', 'password2','PhoneNO')
 
+    def validate_email(self, value):
+        email = value.lower()
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("This email is already registered.")
+        return email
+
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"error": "Passwords do not match"})
@@ -77,7 +83,13 @@ class SupplierRegistrationSerializer(serializers.ModelSerializer):
     ExperienceYears = serializers.IntegerField(required=True)
     class Meta:
         model = User
-        fields = ('email', 'first_name', 'last_name', 'password', 'password2','PhoneNO','CategoryTitle','ExperienceYears')    
+        fields = ('email', 'first_name', 'last_name', 'password', 'password2','PhoneNO','CategoryTitle','ExperienceYears')  
+
+    def validate_email(self, value):
+        email = value.lower()
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("This email is already registered.")
+        return email
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"error": "Passwords do not match"})
@@ -117,6 +129,12 @@ class DeliveryRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('email', 'first_name', 'last_name', 'password', 'password2', 'PhoneNO', 'plateNO','VehicleModel','governorate')
+
+    def validate_email(self, value):
+        email = value.lower()
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("This email is already registered.")
+        return email
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"error": "Passwords do not match"})
@@ -129,7 +147,6 @@ class DeliveryRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"error": "Phone number already exists"})
         
         return attrs
-    
     def save(self, **kwargs):
         user = User(
             email=self.validated_data['email'],
