@@ -9,6 +9,7 @@ from rest_framework import serializers
 from .utils import Google, register_social_user
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
+import re
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -43,8 +44,8 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"error": "Passwords do not match"})
         if len(attrs['password']) < 8 or not any(char.isdigit() for char in attrs['password']):
             raise serializers.ValidationError({"error": "Password must be at least 8 characters long and contain at least one digit"})
-        
-        # Check if PhoneNO already exists in the database
+        if not re.match(r'^(010|011|012|015)\d{8}$', str(attrs['PhoneNO'])):
+            raise serializers.ValidationError({"error": "number must be in the format 01*********"})
         if User.objects.filter(PhoneNO=attrs['PhoneNO']).exists():
             raise serializers.ValidationError({"error": "Phone number already exists"})
         
@@ -82,7 +83,8 @@ class SupplierRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"error": "Passwords do not match"})
         if len(attrs['password']) < 8 or not any(char.isdigit() for char in attrs['password']):
             raise serializers.ValidationError({"error": "Password must be at least 8 characters long and contain at least one digit"})
-        
+        if not re.match(r'^(010|011|012|015)\d{8}$', str(attrs['PhoneNO'])):
+            raise serializers.ValidationError({"error": "number must be in the format 01*********"})
         # Check if PhoneNO already exists in the database
         if User.objects.filter(PhoneNO=attrs['PhoneNO']).exists():
             raise serializers.ValidationError({"error": "Phone number already exists"})
@@ -120,7 +122,8 @@ class DeliveryRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"error": "Passwords do not match"})
         if len(attrs['password']) < 8 or not any(char.isdigit() for char in attrs['password']):
             raise serializers.ValidationError({"error": "Password must be at least 8 characters long and contain at least one digit"})
-        
+        if not re.match(r'^(010|011|012|015)\d{8}$', str(attrs['PhoneNO'])):
+            raise serializers.ValidationError({"error": "number must be in the format 01*********"})
         # Check if PhoneNO already exists in the database
         if User.objects.filter(PhoneNO=attrs['PhoneNO']).exists():
             raise serializers.ValidationError({"error": "Phone number already exists"})
