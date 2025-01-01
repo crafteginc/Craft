@@ -11,13 +11,13 @@ from accounts.models import User
 from django.contrib.auth import authenticate
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
-# دالة غير متزامنة لإرسال OTP عبر البريد الإلكتروني
-async def send_generated_otp_to_email(email, request):
+# دالة لإرسال OTP عبر البريد الإلكتروني بشكل متزامن
+def send_generated_otp_to_email(email, request):
     subject = "One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
-    
-    # جلب المستخدم بشكل غير متزامن
-    user = await asyncio.to_thread(User.objects.get, email=email)
+
+    # جلب المستخدم بشكل متزامن
+    user = User.objects.get(email=email)
     
     email_body = f"""
     Hi {user.first_name},
@@ -32,22 +32,22 @@ async def send_generated_otp_to_email(email, request):
     """
     from_email = settings.EMAIL_HOST_USER
     
-    # إنشاء كائن OTP في قاعدة البيانات بشكل غير متزامن
-    await asyncio.to_thread(OneTimePassword.objects.create, user=user, otp=otp)
+    # إنشاء كائن OTP في قاعدة البيانات بشكل متزامن
+    OneTimePassword.objects.create(user=user, otp=otp)
     
-    # إرسال البريد الإلكتروني بشكل غير متزامن
+    # إرسال البريد الإلكتروني بشكل متزامن
     d_email = EmailMessage(subject=subject, body=email_body, from_email=from_email, to=[user.email])
-    await asyncio.to_thread(d_email.send)
+    d_email.send()
 
-# دالة لإرسال بريد إلكتروني عادي بشكل غير متزامن
-async def send_normal_email(data):
+# دالة لإرسال بريد إلكتروني عادي بشكل متزامن
+def send_normal_email(data):
     email = EmailMessage(
         subject=data['email_subject'],
         body=data['email_body'],
         from_email=settings.EMAIL_HOST_USER,
         to=[data['to_email']]
     )
-    await asyncio.to_thread(email.send)
+    email.send()
 
 
 class Google():

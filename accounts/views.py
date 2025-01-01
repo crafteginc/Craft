@@ -29,7 +29,7 @@ from asgiref.sync import sync_to_async
 
 class ResendOtp(GenericAPIView):
     serializer_class=EmailVerificationSerializer
-    async def post(self,request):
+    def post(self,request):
         serializer=self.serializer_class(data=request.data)
         if serializer.is_valid():
              email = serializer.validated_data['email']
@@ -42,7 +42,7 @@ class ResendOtp(GenericAPIView):
             email_body = f"Hi {user.first_name} thanks for signing up on CraftEG Please Verify your Email with the \n one time passcode {otp}"
             from_email = settings.EMAIL_HOST_USER
             to_email = [user.email]
-            await send_email_async(subject, email_body, from_email, to_email)
+            send_email_async(subject, email_body, from_email, to_email)
             user.save()
             return Response({"message": "OTP sent to your email."}, status=status.HTTP_200_OK)
         else:
@@ -52,7 +52,7 @@ class ResendOtp(GenericAPIView):
 class RegisterViewforCustomer(GenericAPIView):
     serializer_class = CustomerRegistrationSerializer
     
-    async def post(self, request):
+    def post(self, request):
         user = request.data
         PhoneNO = user.get('PhoneNO', None)
         
@@ -63,8 +63,7 @@ class RegisterViewforCustomer(GenericAPIView):
         if serializer.is_valid():
             serializer.save()
             user_data = serializer.data
-            # إرسال OTP عبر البريد الإلكتروني بشكل غير متزامن
-            await send_generated_otp_to_email(user_data['email'], request)
+            send_generated_otp_to_email(user_data['email'], request)
             return Response({
                 'data': user_data,
                 'message': 'Thanks for signing up! A passcode has been sent to verify your email.'
@@ -77,7 +76,7 @@ class RegisterViewforCustomer(GenericAPIView):
 class RegisterViewforSupplier(GenericAPIView):
     serializer_class = SupplierRegistrationSerializer
     
-    async def post(self, request):
+    def post(self, request):
         user = request.data
         PhoneNO = user.get('PhoneNO', None)
         if not re.match(r'^(010|011|012|015)\d{8}$', PhoneNO):
@@ -88,7 +87,7 @@ class RegisterViewforSupplier(GenericAPIView):
             serializer.save()
             user_data = serializer.data
             # استخدام دالة غير متزامنة لإرسال البريد الإلكتروني
-            await send_generated_otp_to_email(user_data['email'], request)
+            send_generated_otp_to_email(user_data['email'], request)
             return Response({
                 'data': user_data,
                 'message': 'Thanks for signing up! A passcode has been sent to verify your email.'
@@ -99,7 +98,7 @@ class RegisterViewforSupplier(GenericAPIView):
 
 class RegisterViewforDelivery(GenericAPIView):
     serializer_class =DeliveryRegistrationSerializer
-    async def post(self, request):
+    def post(self, request):
         user = request.data
         phone_number = user.get('PhoneNO', None)
         if not re.match(r'^(010|011|012|015)\d{8}$', phone_number):
@@ -108,7 +107,7 @@ class RegisterViewforDelivery(GenericAPIView):
         if serializer.is_valid():
             serializer.save()
             user_data=serializer.data
-            await send_generated_otp_to_email(user_data['email'], request)
+            send_generated_otp_to_email(user_data['email'], request)
             return Response({
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
