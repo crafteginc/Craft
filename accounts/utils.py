@@ -17,7 +17,6 @@ from asgiref.sync import sync_to_async
 def send_generated_otp_to_email(email, request):
     subject ="One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
-    current_site = get_current_site(request).domain
     user = User.objects.get(email=email)
     email_body = f"Hi {user.first_name} thanks for signing up on CraftEG Please Verify your Email with the \n one time passcode {otp}"
 

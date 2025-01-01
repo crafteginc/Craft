@@ -28,6 +28,28 @@ from .serializers import GoogleSignInSerializer
 import asyncio
 from asgiref.sync import sync_to_async
 
+class ResendOtp(GenericAPIView):
+    serializer_class=EmailVerificationSerializer
+    async def post(self,request):
+        serializer=self.serializer_class(data=request.data)
+        if serializer.is_valid():
+             email = serializer.validated_data['email']
+        if User.objects.filter(email=email).exists():
+            user=User.objects.get(email=email)
+            otp = random.randint(1000, 9999)
+            OneTimePassword.objects.update_or_create(user=user, defaults={'otp': otp})
+            # Send email asynchronously
+            subject = "One time Passcode for Email Verification"
+            email_body = f"Hi {user.first_name} thanks for signing up on CraftEG Please Verify your Email with the \n one time passcode {otp}"
+            from_email = settings.EMAIL_HOST_USER
+            to_email = [user.email]
+            await send_email_async(subject, email_body, from_email, to_email)
+            user.save()
+            return Response({"message": "OTP sent to your email."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"message": "Error occured."}, status=status.HTTP_404_NOT_FOUND)
+
+
 class RegisterViewforcustomer(GenericAPIView):
     serializer_class = CustomerRegistrationSerializer
     def post(self, request):
