@@ -21,8 +21,9 @@ def send_generated_otp_to_email(email, request):
 
     Thanks for signing up on CraftEG! 
 
-    Please verify your email using    the following One-Time Passcode (OTP): 
-    {otp}
+    Please verify your email using 
+    the following One-Time Passcode 
+    (OTP): {otp}
 
     Best regards,  
     The CraftEG Team
