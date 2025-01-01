@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .views import RegisterViewforcustomer,VerifyUserEmail,RegisterViewforSupplier,RegisterViewforDelivery,SupplierProfileAPIView
+from .views import RegisterViewforCustomer,VerifyUserEmail,RegisterViewforSupplier,RegisterViewforDelivery,SupplierProfileAPIView
 from .views import LoginUserView,PasswordResetRequestView,SetNewPasswordView,LogoutApiView,GoogleOauthSignInview
 from . views import CustomerProfileAPIView, DeliveryProfileAPIView,SuppliersList,SupplierDetail,FollowSupplier,TrendingSuppliersAPIView,AddressViewSet,SupplierDocumentViewSet
 from .views import deliveryDocumentViewSet,ResendOtp
@@ -12,7 +12,7 @@ router.register('supplier-documents', SupplierDocumentViewSet, basename='supplie
 router.register('delivery-documents', deliveryDocumentViewSet, basename='supplier-documents')
 
 urlpatterns = [
-    path('register_customer/', RegisterViewforcustomer.as_view(), name='register_customer'),
+    path('register_customer/', RegisterViewforCustomer.as_view(), name='register_customer'),
     path('register_supplier/', RegisterViewforSupplier.as_view(), name='register_Supplier'),
     path('register_delivery/', RegisterViewforDelivery.as_view(), name='register_delivery'),
     path('auth-google/', GoogleOauthSignInview.as_view(), name='auth-google'),
