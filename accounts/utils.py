@@ -15,7 +15,7 @@ def send_generated_otp_to_email(email, request):
     subject ="One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
     user = User.objects.get(email=email)
-    email_body = f"Hi {user.first_name}\nThanks for signing up on CraftEG Please verify your Email with The \nOne-Time Passcode: {otp}\n\nBest regards\nThe CraftEG Team",  
+    email_body = f"Hi {user.first_name}\nThanks for signing up on CraftEG Please verify your Email with The \nOne-Time Passcode: {otp}\n\nBest regards\nThe CraftEG Team"  
     from_email = settings.EMAIL_HOST_USER  
     otp_obj = OneTimePassword.objects.create(user=user, otp=otp)
     d_email = EmailMessage(subject=subject, body=email_body, from_email=from_email, to=[user.email])
