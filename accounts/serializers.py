@@ -52,7 +52,7 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
 
     def save(self, **kwargs):
         user = User(
-            email=self.validated_data['email'].lower(),
+            email=self.validated_data['email'],
             first_name=self.validated_data['first_name'].title(),
             last_name=self.validated_data['last_name'].title(),
             PhoneNO=self.validated_data['PhoneNO'],
@@ -91,7 +91,7 @@ class SupplierRegistrationSerializer(serializers.ModelSerializer):
     
     def save(self, **kwargs):
         user = User(
-            email=self.validated_data['email'].lower(),
+            email=self.validated_data['email'],
             first_name=self.validated_data['first_name'].title(),
             last_name=self.validated_data['last_name'].title(),
             PhoneNO=self.validated_data['PhoneNO'],
@@ -129,7 +129,7 @@ class DeliveryRegistrationSerializer(serializers.ModelSerializer):
     
     def save(self, **kwargs):
         user = User(
-            email=self.validated_data['email'].lower(),
+            email=self.validated_data['email'],
             first_name=self.validated_data['first_name'].title(),
             last_name=self.validated_data['last_name'].title(),
             is_delivery=True
