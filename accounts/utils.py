@@ -11,35 +11,27 @@ from accounts.models import User
 from django.contrib.auth import authenticate
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
-# دالة لإرسال OTP عبر البريد الإلكتروني بشكل متزامن
+
 def send_generated_otp_to_email(email, request):
     subject = "One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
-
-    # جلب المستخدم بشكل متزامن
-    user = User.objects.get(email=email)
-    
+    user = User.objects.get(email=email) 
     email_body = f"""
     Hi {user.first_name},
 
     Thanks for signing up on CraftEG! 
 
-    Please verify your email using the following One-Time Passcode (OTP): 
+    Please verify your email using    the following One-Time Passcode (OTP): 
     {otp}
 
     Best regards,  
     The CraftEG Team
     """
     from_email = settings.EMAIL_HOST_USER
-    
-    # إنشاء كائن OTP في قاعدة البيانات بشكل متزامن
     OneTimePassword.objects.create(user=user, otp=otp)
-    
-    # إرسال البريد الإلكتروني بشكل متزامن
     d_email = EmailMessage(subject=subject, body=email_body, from_email=from_email, to=[user.email])
     d_email.send()
 
-# دالة لإرسال بريد إلكتروني عادي بشكل متزامن
 def send_normal_email(data):
     email = EmailMessage(
         subject=data['email_subject'],
@@ -48,8 +40,6 @@ def send_normal_email(data):
         to=[data['to_email']]
     )
     email.send()
-
-
 class Google():
     @staticmethod
     def validate(access_token):
