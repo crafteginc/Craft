@@ -10,23 +10,27 @@ from accounts.models import User
 from django.contrib.auth import authenticate
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
-from django.utils.http import urlsafe_base64_encode
-from asgiref.sync import sync_to_async
 
-@sync_to_async
 def send_generated_otp_to_email(email, request):
     subject ="One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
-    current_site = get_current_site(request).domain
     user = User.objects.get(email=email)
-    email_body = f"Hi {user.first_name}\nthanks for signing up on CraftEG Please Verify your Email with the \nOne Time Passcode {otp}"
+    email_body = f"""
+Hi {user.first_name},
 
+Thanks for signing up on CraftEG! 
+
+Please verify your email using the following One-Time Passcode (OTP): 
+{otp}
+
+Best regards,  
+The CraftEG Team
+"""
     from_email = settings.EMAIL_HOST_USER  
     otp_obj = OneTimePassword.objects.create(user=user, otp=otp)
     d_email = EmailMessage(subject=subject, body=email_body, from_email=from_email, to=[user.email])
     d_email.send()
 
-@sync_to_async
 def send_normal_email(data):
     email = EmailMessage(
         subject=data['email_subject'],
