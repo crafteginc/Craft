@@ -50,10 +50,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.email
     
     def save(self, *args, **kwargs):
+     if self.email:
+        self.email = self.email.strip().lower()
      if not self.pk or not self.password:
         if not self.pk:
             self.pk = None
         self.password = make_password(self.password)
+
      super().save(*args, **kwargs)
 
 class Customer(models.Model):
