@@ -52,7 +52,7 @@ class ResendOtp(GenericAPIView):
 
 class RegisterViewforcustomer(GenericAPIView):
     serializer_class = CustomerRegistrationSerializer
-    def post(self, request):
+    async def post(self, request):
         user = request.data
         PhoneNO = user.get('PhoneNO', None)
         if not re.match(r'^(010|011|012|015)\d{8}$', str(PhoneNO)):
@@ -61,7 +61,7 @@ class RegisterViewforcustomer(GenericAPIView):
         if serializer.is_valid():
             serializer.save()
             user_data=serializer.data
-            send_generated_otp_to_email(user_data['email'], request)
+            await send_generated_otp_to_email(user_data['email'], request)
             return Response({
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
@@ -94,7 +94,7 @@ class RegisterViewforSupplier(GenericAPIView):
 
 class RegisterViewforDelivery(GenericAPIView):
     serializer_class =DeliveryRegistrationSerializer
-    def post(self, request):
+    async def post(self, request):
         user = request.data
         phone_number = user.get('PhoneNO', None)
         if not re.match(r'^(010|011|012|015)\d{8}$', phone_number):
@@ -103,7 +103,7 @@ class RegisterViewforDelivery(GenericAPIView):
         if serializer.is_valid():
             serializer.save()
             user_data=serializer.data
-            send_generated_otp_to_email(user_data['email'], request)
+            await send_generated_otp_to_email(user_data['email'], request)
             return Response({
                 'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
