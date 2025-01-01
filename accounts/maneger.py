@@ -12,7 +12,7 @@ class UserManager(BaseUserManager):
 
     def create_user(self, email, first_name, last_name, password,PhoneNO, **extra_fields):
         if email:
-            email = self.normalize_email(email).lower()
+            email = (self.normalize_email(email)).lower()
             self.email_validator(email)
         else:
             raise ValueError(_("Base User Account: An email address is required"))
