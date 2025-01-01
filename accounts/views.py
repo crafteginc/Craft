@@ -31,7 +31,7 @@ class ResendOtp(GenericAPIView):
     serializer_class=EmailVerificationSerializer
     def post(self,request):
         serializer=self.serializer_class(data=request.data)
-        if serializer.is_valid():
+        if serializer.is_valid(raise_exception=True):
              email = serializer.validated_data['email']
         if User.objects.filter(email=email).exists():
             user=User.objects.get(email=email)
@@ -342,12 +342,11 @@ async def send_email_async(subject, email_body, from_email, to_email):
     وظيفة غير متزامنة لإرسال البريد الإلكتروني باستخدام Django EmailMessage.
     """
     email = EmailMessage(subject, email_body, from_email, to_email)
-    await sync_to_async(email.send)()
 
 class PasswordResetRequestView(APIView):
     serializer_class = EmailVerificationSerializer
 
-    async def post(self, request):
+    def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
@@ -367,8 +366,7 @@ class PasswordResetRequestView(APIView):
             email_body = f"Hi {user.first_name}, use this OTP to reset your password: {otp}"
             from_email = settings.EMAIL_HOST_USER
             to_email = [user.email]
-            await send_email_async(subject, email_body, from_email, to_email)
-
+            send_email_async(subject, email_body, from_email, to_email)
             # Update last password reset request time
             user.last_password_reset_request = now()
             user.save()
