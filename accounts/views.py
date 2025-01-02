@@ -391,7 +391,7 @@ class SetNewPasswordView(APIView):
 
         otp_record = OneTimePassword.objects.filter(otp=otp).first()
 
-        if not otp_record or otp_record.user.last_login > otp_record.created_at:
+        if not otp_record:
             return Response({"message": "Invalid OTP or OTP has expired."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = otp_record.user
