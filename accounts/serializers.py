@@ -14,7 +14,8 @@ import re
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['first_name','last_name','PhoneNO','date_joined']
+        fields = ['first_name','last_name','PhoneNO','date_joined','Balance']
+        read_only_fields = ['balance','date_joined']
 
 class AddressSerializer(serializers.ModelSerializer):
     class Meta:
@@ -197,7 +198,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
  class Meta:
         model = Customer
-        fields =  ["id",'user','CustomerPhoto','Balance']
+        fields =  ['user','CustomerPhoto']
 
  def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})
@@ -216,7 +217,7 @@ class SupplierProfileSerializer(serializers.ModelSerializer):
  products = AcountProductSerializer(many=True, source='product_set') 
  class Meta:
         model = Supplier
-        fields =  ["id",'user','SupplierCover','SupplierPhoto','CategoryTitle','ExperienceYears','Rating','Orders','Balance','products']
+        fields =  ['user','SupplierCover','SupplierPhoto','CategoryTitle','ExperienceYears','Rating','Orders','products']
 
  def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})
@@ -234,7 +235,7 @@ class deliveryProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
  class Meta:
         model = Delivery
-        fields =  ["id",'user','DeliveryPhoto','Rating','Orders','Balance','ExperienceYears','VehicleModel','plateNO']
+        fields =  ['user','DeliveryPhoto','Rating','Orders','ExperienceYears','VehicleModel','plateNO']
  def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})
         user = instance.user
