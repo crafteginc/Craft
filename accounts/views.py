@@ -347,7 +347,7 @@ class PasswordResetRequestView(APIView):
             
             # Generate OTP
             otp = random.randint(1000, 9999)
-            OneTimePassword.objects.update_or_create(user=user, defaults={'otp': otp},created_at=now())
+            OneTimePassword.objects.update_or_create(user=user, defaults={'otp': otp})
 
             # Email content
             subject = "One-Time Passcode for Password Reset"

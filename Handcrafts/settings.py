@@ -95,7 +95,7 @@ CORS_ALLOWED_ORIGINS = [
 
 
 SIMPLE_JWT = {# third party 
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'BLACKLIST_AFTER_ROTATION':True,
     'AUTH_HEADER_TYPES': ('Bearer',),
