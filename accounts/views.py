@@ -347,7 +347,7 @@ class PasswordResetRequestView(APIView):
             
             # Generate OTP
             otp = random.randint(1000, 9999)
-            OneTimePassword.objects.update_or_create(user=user, defaults={'otp': otp})
+            OneTimePassword.objects.update_or_create(user=user, defaults={'otp': otp},created_at=now())
 
             # Email content
             subject = "One-Time Passcode for Password Reset"
@@ -357,7 +357,7 @@ class PasswordResetRequestView(APIView):
                 f"{otp}\n\n"
                 f"If you did not request this, please ignore this email.\n\n"
                 f"Best regards,\n"
-                f"Your Team"
+                f"Craft EG Team"
             )
             from_email = settings.EMAIL_HOST_USER
             to_email = [user.email]
