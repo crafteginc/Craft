@@ -230,7 +230,7 @@ class SupplierProfileSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
-
+ 
 class deliveryProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
  class Meta:
