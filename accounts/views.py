@@ -357,7 +357,7 @@ class PasswordResetRequestView(APIView):
                 f"{otp}\n\n"
                 f"If you did not request this, please ignore this email.\n\n"
                 f"Best regards,\n"
-                f"Your Team"
+                f"Craft EG Team"
             )
             from_email = settings.EMAIL_HOST_USER
             to_email = [user.email]
