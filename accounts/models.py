@@ -51,9 +51,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.email
     
     def clean(self):
-        if User.objects.filter(email__iexact=self.email).exists():
+        super().clean()
+        if User.objects.filter(email__iexact=self.email).exclude(pk=self.pk).exists():
             raise ValidationError("This email is already in use.")
-    
+        
     def save(self, *args, **kwargs):
      if self.email:
         self.email = self.email.strip().lower()
