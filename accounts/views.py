@@ -171,9 +171,9 @@ class CustomerProfileAPIView(APIView):
         serializer = CustomerProfileSerializer(customer)
         return Response(serializer.data)
     
-    def put(self, request, format=None):
+    def patch(self, request, format=None):
         customer = self.get_object(request.user)
-        serializer = CustomerProfileSerializer(customer, data=request.data)
+        serializer = CustomerProfileSerializer(customer, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -192,9 +192,9 @@ class SupplierProfileAPIView(APIView):
         serializer = SupplierProfileSerializer(supplier)
         return Response(serializer.data)
 
-    def put(self, request, format=None):
+    def patch(self, request, format=None):
         supplier = self.get_object(request.user)
-        serializer = SupplierProfileSerializer(supplier, data=request.data)
+        serializer = SupplierProfileSerializer(supplier, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -214,9 +214,9 @@ class DeliveryProfileAPIView(APIView):
         serializer = deliveryProfileSerializer(delivery)
         return Response(serializer.data)
         
-    def put(self, request, format=None):
+    def patch(self, request, format=None):
         delivery = self.get_object(request.user)
-        serializer = deliveryProfileSerializer(delivery, data=request.data)
+        serializer = deliveryProfileSerializer(delivery, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)

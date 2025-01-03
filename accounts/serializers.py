@@ -15,7 +15,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['first_name','last_name','PhoneNO','date_joined','Balance']
-        read_only_fields = ['balance','date_joined']
+        read_only_fields = ['Balance','date_joined']
 
 class AddressSerializer(serializers.ModelSerializer):
     class Meta:
@@ -211,7 +211,18 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance   
- 
+ def validate(self, attrs):
+    # Check if user data is present
+    user_data = attrs.get('user')
+    if user_data:
+        phone_no = str(user_data.get('PhoneNO', ''))
+        if not re.match(r'^(010|011|012|015)\d{8}$', phone_no):
+            raise serializers.ValidationError({"error": "Phone number must be in the format 01*"})
+        # Exclude the current user instance from the query if it exists
+        if User.objects.filter(PhoneNO=phone_no).exclude(pk=self.instance.user.pk).exists():
+            raise serializers.ValidationError({"error": "Phone number already exists"})
+    return attrs
+
 class SupplierProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
  products = AcountProductSerializer(many=True, source='product_set') 
@@ -230,7 +241,18 @@ class SupplierProfileSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
- 
+ def validate(self, attrs):
+    # Check if user data is present
+    user_data = attrs.get('user')
+    if user_data:
+        phone_no = str(user_data.get('PhoneNO', ''))
+        if not re.match(r'^(010|011|012|015)\d{8}$', phone_no):
+            raise serializers.ValidationError({"error": "Phone number must be in the format 01*"})
+        # Exclude the current user instance from the query if it exists
+        if User.objects.filter(PhoneNO=phone_no).exclude(pk=self.instance.user.pk).exists():
+            raise serializers.ValidationError({"error": "Phone number already exists"})
+    return attrs
+
 class deliveryProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
  class Meta:
@@ -248,6 +270,17 @@ class deliveryProfileSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+ def validate(self, attrs):
+    # Check if user data is present
+    user_data = attrs.get('user')
+    if user_data:
+        phone_no = str(user_data.get('PhoneNO', ''))
+        if not re.match(r'^(010|011|012|015)\d{8}$', phone_no):
+            raise serializers.ValidationError({"error": "Phone number must be in the format 01*"})
+        # Exclude the current user instance from the query if it exists
+        if User.objects.filter(PhoneNO=phone_no).exclude(pk=self.instance.user.pk).exists():
+            raise serializers.ValidationError({"error": "Phone number already exists"})
+    return attrs
 
 class CraftersSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
