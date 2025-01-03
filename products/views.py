@@ -17,7 +17,6 @@ from accounts.models import Supplier
 from .permissions import *
 from PIL import Image
 
-
 class Categories(APIView):
     #permission_classes = [permissions.IsAuthenticated]
     def get(self, request):

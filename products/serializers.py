@@ -7,9 +7,6 @@ class ProductImageSerializer(serializers.ModelSerializer):
         model = ProImage
         fields = ["id","image"]
 
-class ImageUploadSerializer(serializers.Serializer):
-    upload = serializers.ImageField()
-
 class ProductColorserializer(serializers.ModelSerializer):
     class Meta:
         model = ProColors
