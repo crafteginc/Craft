@@ -2,7 +2,7 @@ from django.contrib import admin
 from .views import RegisterViewforCustomer,VerifyUserEmail,RegisterViewforSupplier,RegisterViewforDelivery,SupplierProfileAPIView
 from .views import LoginUserView,PasswordResetRequestView,SetNewPasswordView,LogoutApiView,GoogleOauthSignInview
 from . views import CustomerProfileAPIView, DeliveryProfileAPIView,SuppliersList,SupplierDetail,FollowSupplier,TrendingSuppliersAPIView,AddressViewSet,SupplierDocumentViewSet
-from .views import deliveryDocumentViewSet,ResendOtp
+from .views import deliveryDocumentViewSet,ResendOtp,CheckOTPValidity
 from django.urls import path , include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -22,6 +22,7 @@ urlpatterns = [
     path('login/',LoginUserView.as_view(), name='login'),
     path('token-refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('password-reset/', PasswordResetRequestView.as_view(), name='password-reset'),
+    path('check-otp/', CheckOTPValidity.as_view(), name='check_otp'),
     path('set-new-password/', SetNewPasswordView.as_view(), name='set-new-password'),
     path('logout/', LogoutApiView.as_view(), name='logout'),
     path('supplier/profile/', SupplierProfileAPIView.as_view(), name='supplier-profile'),

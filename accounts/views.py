@@ -377,6 +377,40 @@ class PasswordResetRequestView(APIView):
         else:
             return Response({"message": "User with that email does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
+class CheckOTPValidity(APIView):
+    def post(self, request):
+        try:
+            # Retrieve the input data
+            otp = request.data.get('otp')
+            email = request.data.get('email')
+
+            # Validate input data
+            if not otp or not email:
+                return Response(
+                    {'message': 'Both email and OTP are required.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Check if the OTP is valid for the provided email
+            otp_obj = OneTimePassword.objects.filter(otp=otp, user__email=email).first()
+
+            if not otp_obj:
+                return Response(
+                    {'message': 'Invalid OTP or email provided.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # If the OTP is valid, return a success message
+            return Response(
+                {'message': 'OTP is valid.'},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'message': f'An error occurred: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 class SetNewPasswordView(APIView):
     serializer_class = SetNewPasswordSerializer
     def patch(self, request):
