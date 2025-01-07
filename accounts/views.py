@@ -34,29 +34,47 @@ class ResendOtp(GenericAPIView):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid(raise_exception=True):
             email = serializer.validated_data['email']
-            
+
+        # Check if the user exists
         if User.objects.filter(email=email).exists():
             user = User.objects.get(email=email)
             otp = random.randint(1000, 9999)
             OneTimePassword.objects.update_or_create(user=user, defaults={'otp': otp})
 
+            # Check if the user is verified
+            if user.is_verified:
+                # Email for password reset
+                subject = "One-Time Passcode for Password Reset"
+                email_body = (
+                    f"Hi {user.first_name},\n\n"
+                    f"You requested to reset your password.\n\n"
+                    f"Use the following OTP to reset it: {otp}\n\n"
+                    f"If you did not request this, please ignore this email.\n\n"
+                    f"Best regards,\n"
+                    f"The CraftEG Team"
+                )
+            else:
+                # Email for email verification
+                subject = "One-Time Passcode for Email Verification"
+                email_body = (
+                    f"Dear {user.first_name},\n\n"
+                    f"Thank you for signing up with CraftEG. To complete your registration, please verify your email address using the one-time passcode below:\n\n"
+                    f"One-Time Passcode: {otp}\n\n"
+                    f"If you did not sign up for a CraftEG account, please disregard this message.\n\n"
+                    f"Best regards,\n"
+                    f"The CraftEG Team"
+                )
+
             # Send email
-            subject = "One time Passcode for Email Verification"
-            email_body = (
-                f"Hi {user.first_name},\n"
-                f"Thanks for signing up on CraftEG. Please verify your email with the "
-                f"one-time passcode: {otp}"
-            )
             from_email = settings.EMAIL_HOST_USER
             to_email = [user.email]
-            
             email = EmailMessage(subject, email_body, from_email, to_email)
-            email.send()  # This line sends the email
+            email.send()
 
             user.save()
             return Response({"message": "OTP sent to your email."}, status=status.HTTP_200_OK)
         else:
-            return Response({"message": "Error occurred."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Email not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class RegisterViewforCustomer(GenericAPIView):
     serializer_class = CustomerRegistrationSerializer
