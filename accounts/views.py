@@ -131,7 +131,7 @@ class RegisterViewforDelivery(GenericAPIView):
 class VerifyUserEmail(GenericAPIView):
     def post(self, request):
         try:
-            # استرجاع البيانات المُدخلة
+            # Extract input data
             passcode = request.data.get('otp')
             email = request.data.get('email')
 
@@ -140,6 +140,8 @@ class VerifyUserEmail(GenericAPIView):
                     {'message': 'Both email and OTP are required.'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            # Validate OTP and email
             user_pass_obj = OneTimePassword.objects.filter(otp=passcode, user__email=email).first()
 
             if not user_pass_obj:
@@ -155,12 +157,29 @@ class VerifyUserEmail(GenericAPIView):
                     {'message': 'User is already verified.'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            # Mark user as verified
             user.is_verified = True
             user.save()
-            # حذف الـ OTP بعد الاستخدام الناجح
+
+            # Delete the OTP after successful verification
             user_pass_obj.delete()
+
+            # Authenticate the user to generate tokens
+            if not user.check_password(request.data.get('password', '')):
+                return Response(
+                    {'message': 'Invalid password provided.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            tokens = user.tokens()
+
             return Response(
-                {'message': 'Account email verified successfully.'}, 
+                {
+                    'message': 'Account email verified and logged in successfully.',
+                    'access_token': str(tokens.get('access')),
+                    'refresh_token': str(tokens.get('refresh'))
+                },
                 status=status.HTTP_200_OK
             )
         except Exception as e:
