@@ -162,9 +162,6 @@ class VerifyUserEmail(GenericAPIView):
             user.is_verified = True
             user.save()
 
-            # Delete the OTP after successful verification
-            user_pass_obj.delete()
-
             # Authenticate the user to generate tokens
             if not user.check_password(request.data.get('password', '')):
                 return Response(
@@ -173,10 +170,12 @@ class VerifyUserEmail(GenericAPIView):
                 )
 
             tokens = user.tokens()
-
+            user_pass_obj.delete()
             return Response(
                 {
                     'message': 'Account email verified and logged in successfully.',
+                    'email': user.email,
+                    'full_name': user.get_full_name(),
                     'access_token': str(tokens.get('access')),
                     'refresh_token': str(tokens.get('refresh'))
                 },
