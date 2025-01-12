@@ -175,7 +175,7 @@ class VerifyUserEmail(GenericAPIView):
                 {
                     'message': 'Account email verified and logged in successfully.',
                     'email': user.email,
-                    'full_name': user.get_full_name(),
+                    'first_name': user.first_name,
                     'access_token': str(tokens.get('access')),
                     'refresh_token': str(tokens.get('refresh'))
                 },
