@@ -35,7 +35,8 @@ class AcountProductSerializer(serializers.ModelSerializer):
         return data
 
 class CustomerRegistrationSerializer(serializers.ModelSerializer):
-    password2 = serializers.CharField(style={"input_type": "password"})
+    password2 = serializers.CharField(style={"input_type": "password"}, write_only=True)
+    password = serializers.CharField(style={"input_type": "password"}, write_only=True)
     class Meta:
         model = User
         fields = ('email', 'first_name', 'last_name', 'password', 'password2','PhoneNO')
@@ -79,7 +80,8 @@ class CategoreyTitle(serializers.ModelSerializer):
        fields =('Title')
 
 class SupplierRegistrationSerializer(serializers.ModelSerializer):
-    password2 = serializers.CharField(style={"input_type": "password"})
+    password2 = serializers.CharField(style={"input_type": "password"}, write_only=True)
+    password = serializers.CharField(style={"input_type": "password"}, write_only=True)
     CategoryTitle = serializers.CharField(required=True)
     ExperienceYears = serializers.IntegerField(required=True)
     class Meta:
@@ -122,7 +124,8 @@ class SupplierRegistrationSerializer(serializers.ModelSerializer):
         return user
  
 class DeliveryRegistrationSerializer(serializers.ModelSerializer):
-    password2 = serializers.CharField(style={"input_type": "password"})
+    password2 = serializers.CharField(style={"input_type": "password"}, write_only=True)
+    password = serializers.CharField(style={"input_type": "password"}, write_only=True)
     plateNO = serializers.CharField(required=True)
     VehicleModel = serializers.CharField(required=True)
     governorate = serializers.CharField(max_length=100)
