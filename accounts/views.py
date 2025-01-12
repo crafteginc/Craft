@@ -86,6 +86,7 @@ class RegisterViewforCustomer(GenericAPIView):
             user_data = serializer.data
             send_generated_otp_to_email(user_data['email'], request)
             return Response({
+                'email':user_data['email'],
                 'message': 'Thanks for signing up! A passcode has been sent to verify your email.'
             }, status=status.HTTP_201_CREATED)
         
@@ -103,6 +104,7 @@ class RegisterViewforSupplier(GenericAPIView):
             user_data = serializer.data
             send_generated_otp_to_email(user_data['email'], request)
             return Response({
+                'email':user_data['email'],
                 'message': 'Thanks for signing up! A passcode has been sent to verify your email.'
             }, status=status.HTTP_201_CREATED)
         
@@ -119,6 +121,7 @@ class RegisterViewforDelivery(GenericAPIView):
             user_data=serializer.data
             send_generated_otp_to_email(user_data['email'], request)
             return Response({
+                'email':user_data['email'],
                 'message':'thanks for signing up a passcode has be sent to verify your email'
             }, status=status.HTTP_201_CREATED)
         errors = [msg for error_list in serializer.errors.values() for msg in error_list]
@@ -172,8 +175,8 @@ class VerifyUserEmail(GenericAPIView):
                     'message': 'Account email verified and logged in successfully.',
                     'email': user.email,
                     'first_name': user.first_name,
-                    'access_token': str(tokens.get('access')),
-                    'refresh_token': str(tokens.get('refresh'))
+                    'access': str(tokens.get('access')),
+                    'refresh': str(tokens.get('refresh'))
                 },
                 status=status.HTTP_200_OK
             )

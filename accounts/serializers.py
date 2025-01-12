@@ -172,12 +172,12 @@ class LoginSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(max_length=155, min_length=6)
     password=serializers.CharField(max_length=68, write_only=True)
     first_name=serializers.CharField(max_length=255, read_only=True)
-    access_token=serializers.CharField(max_length=255, read_only=True)
-    refresh_token=serializers.CharField(max_length=255, read_only=True)
+    access=serializers.CharField(max_length=255, read_only=True)
+    refresh=serializers.CharField(max_length=255, read_only=True)
 
     class Meta:
         model = User
-        fields = ['email', 'password', 'first_name', 'access_token', 'refresh_token']
+        fields = ['email', 'password', 'first_name', 'access', 'refresh']
 
 
     def validate(self, attrs):
@@ -193,8 +193,8 @@ class LoginSerializer(serializers.ModelSerializer):
         return {
             'email':user.email,
             'first_name':user.first_name,
-            "access_token":str(tokens.get('access')),
-            "refresh_token":str(tokens.get('refresh'))
+            "access":str(tokens.get('access')),
+            "refresh":str(tokens.get('refresh'))
         }
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
