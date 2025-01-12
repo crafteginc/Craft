@@ -86,7 +86,6 @@ class RegisterViewforCustomer(GenericAPIView):
             user_data = serializer.data
             send_generated_otp_to_email(user_data['email'], request)
             return Response({
-                'data': user_data,
                 'message': 'Thanks for signing up! A passcode has been sent to verify your email.'
             }, status=status.HTTP_201_CREATED)
         
@@ -102,10 +101,8 @@ class RegisterViewforSupplier(GenericAPIView):
         if serializer.is_valid():
             serializer.save()
             user_data = serializer.data
-            # استخدام دالة غير متزامنة لإرسال البريد الإلكتروني
             send_generated_otp_to_email(user_data['email'], request)
             return Response({
-                'data': user_data,
                 'message': 'Thanks for signing up! A passcode has been sent to verify your email.'
             }, status=status.HTTP_201_CREATED)
         
@@ -122,7 +119,6 @@ class RegisterViewforDelivery(GenericAPIView):
             user_data=serializer.data
             send_generated_otp_to_email(user_data['email'], request)
             return Response({
-                'data':user_data,
                 'message':'thanks for signing up a passcode has be sent to verify your email'
             }, status=status.HTTP_201_CREATED)
         errors = [msg for error_list in serializer.errors.values() for msg in error_list]
