@@ -30,10 +30,29 @@ class AddressAdmin(admin.ModelAdmin):
     list_filter = ('City', 'State')
 
 class FollowAdmin(admin.ModelAdmin):
-    list_display = ('Customer', 'Supplier')
-    search_fields = ('Customer__user__email', 'Customer__user__first_name', 'Customer__user__last_name',
-                     'Supplier__user__email', 'Supplier__user__first_name', 'Supplier__user__last_name')
-    list_filter = ('Customer', 'Supplier')
+    list_display = ('get_follower_name', 'get_follower_type', 'get_supplier_name')
+    search_fields = (
+        'follower_object_id',  # Allows searching by the ID of the follower
+        'supplier__user__email', 
+        'supplier__user__first_name', 
+        'supplier__user__last_name'
+    )
+    list_filter = ('follower_content_type', 'supplier')
+
+    def get_follower_name(self, obj):
+        return str(obj.follower)
+
+    get_follower_name.short_description = 'Follower Name'
+
+    def get_follower_type(self, obj):
+        return obj.follower_content_type.model
+
+    get_follower_type.short_description = 'Follower Type'
+
+    def get_supplier_name(self, obj):
+        return obj.supplier.user.get_full_name() if obj.supplier else "N/A"
+
+    get_supplier_name.short_description = 'Supplier Name'
 
 class OneTimePasswordAdmin(admin.ModelAdmin):
     list_display = ('user', 'otp')

@@ -26,6 +26,7 @@ from django.conf import settings
 from .models import User, OneTimePassword
 from .serializers import GoogleSignInSerializer
 from asgiref.sync import sync_to_async
+from django.contrib.contenttypes.models import ContentType
 
 class ResendOtp(GenericAPIView):
     serializer_class = EmailVerificationSerializer
@@ -286,6 +287,7 @@ class SuppliersList(ListAPIView):
                 "id": supplier.get('id', ''),  # Use .get() method to safely access 'id'
                 'full_name': supplier['user']['full_name'] if 'user' in supplier else '',
                 'SupplierPhoto': supplier.get('SupplierPhoto', ''),
+                'CategoryTitle': supplier.get('CategoryTitle','')
             }
             transformed_data.append(transformed_supplier)
         else:
@@ -333,16 +335,31 @@ class FollowSupplier(APIView):
         try:
             supplier = Supplier.objects.get(id=supplier_id)
             user = request.user
-            customer = user.customer  # Assuming user is a customer
-            follow_exists = Follow.objects.filter(Customer=customer, Supplier=supplier).exists()
+            
+            if hasattr(user, 'customer'):  # If user is a customer
+                follower = user.customer
+            elif hasattr(user, 'supplier'):  # If user is a supplier
+                follower = user.supplier
+            else:
+                return Response({'message': 'User must be a customer or supplier'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            follower_content_type = ContentType.objects.get_for_model(follower)
+            follow_exists = Follow.objects.filter(
+                follower_content_type=follower_content_type,
+                follower_object_id=follower.id,
+                supplier=supplier
+            ).exists()
+            
             if follow_exists:
                 return Response({'message': 'You have already followed this supplier'}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-             Follow.objects.create(Customer=customer, Supplier=supplier)
-             supplier.save()
+            
+            Follow.objects.create(
+                follower_content_type=follower_content_type,
+                follower_object_id=follower.id,
+                supplier=supplier
+            )
             return Response({'message': 'Followed'}, status=status.HTTP_201_CREATED)
-        except Customer.DoesNotExist:
-            return Response({'message': 'User is not a customer'}, status=status.HTTP_400_BAD_REQUEST)
+        
         except Supplier.DoesNotExist:
             return Response({'message': 'Supplier not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
@@ -352,20 +369,29 @@ class FollowSupplier(APIView):
         try:
             supplier = Supplier.objects.get(id=supplier_id)
             user = request.user
-            customer = user.customer  # Assuming user is a customer
-            follow = Follow.objects.get(Customer=customer, Supplier=supplier)
+
+            if hasattr(user, 'customer'):
+                follower = user.customer
+            elif hasattr(user, 'supplier'):
+                follower = user.supplier
+            else:
+                return Response({'message': 'User must be a customer or supplier'}, status=status.HTTP_400_BAD_REQUEST)
+
+            follower_content_type = ContentType.objects.get_for_model(follower)
+            follow = Follow.objects.get(
+                follower_content_type=follower_content_type,
+                follower_object_id=follower.id,
+                supplier=supplier
+            )
             follow.delete()
-            supplier.FollowersNo -= 1
-            supplier.save()
             return Response({'message': 'Unfollowed'}, status=status.HTTP_200_OK)
-        except Customer.DoesNotExist:
-            return Response({'message': 'User is not a customer'}, status=status.HTTP_400_BAD_REQUEST)
+        
         except Supplier.DoesNotExist:
             return Response({'message': 'Supplier not found'}, status=status.HTTP_404_NOT_FOUND)
         except Follow.DoesNotExist:
             return Response({'message': 'You are not following this supplier'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
+            return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class PasswordResetRequestView(APIView):
     serializer_class = EmailVerificationSerializer

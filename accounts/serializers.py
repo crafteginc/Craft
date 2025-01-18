@@ -201,7 +201,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
  class Meta:
         model = Customer
-        fields =  ['user','CustomerPhoto']
+        fields =  ['user','id','CustomerPhoto']
 
  def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})
@@ -231,7 +231,7 @@ class SupplierProfileSerializer(serializers.ModelSerializer):
  products = AcountProductSerializer(many=True, source='product_set') 
  class Meta:
         model = Supplier
-        fields =  ['user','SupplierCover','SupplierPhoto','CategoryTitle','ExperienceYears','Rating','Orders','products']
+        fields =  ['user','id','SupplierCover','SupplierPhoto','CategoryTitle','ExperienceYears','Rating','Orders','products','accepted_supplier']
         read_only_fields = ['Orders','Rating']
  def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})
@@ -260,7 +260,7 @@ class deliveryProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
  class Meta:
         model = Delivery
-        fields =  ['user','DeliveryPhoto','Rating','Orders','ExperienceYears','VehicleModel','plateNO']
+        fields =  ['user','id','DeliveryPhoto','Rating','Orders','ExperienceYears','VehicleModel','plateNO']
         read_only_fields = ['Orders','Rating']
  def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})
@@ -290,7 +290,7 @@ class CraftersSerializer(serializers.ModelSerializer):
     SupplierProducts = AcountProductSerializer(many=True, read_only=True)
     class Meta:
         model = Supplier
-        fields = ('id','user', 'SupplierPhoto', 'SupplierProducts')
+        fields = ('id','user', 'CategoryTitle','SupplierPhoto', 'SupplierProducts')
 
     def get_user(self, obj):
         return {'full_name': obj.user.get_full_name}

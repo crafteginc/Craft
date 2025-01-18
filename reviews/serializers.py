@@ -9,7 +9,7 @@ class ProductReviewSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Review
-        fields = ['id', 'customer', 'product', 'rating', 'comment', 'created_at']
+        fields = ['id', 'customer', 'product', 'rating', 'comment','image', 'created_at']
         read_only_fields = ['id', 'created_at',]
 
     def create(self, validated_data):

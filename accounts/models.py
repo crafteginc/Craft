@@ -1,7 +1,9 @@
 from django.db import models
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import AbstractBaseUser,PermissionsMixin
 from django.dispatch import receiver
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.tokens import RefreshToken
 from .maneger import UserManager
@@ -91,7 +93,7 @@ class Supplier(models.Model):
     Logo = models.ImageField(upload_to='supplier_logos/%y/%m/%d', blank=True, null=True)
     SupplierContract = models.ImageField(upload_to='supplier_contracts/%y/%m/%d')
     SupplierIdentity = models.ImageField(upload_to='supplier_identities/%y/%m/%d')
-    FollowersNo =models.IntegerField(default = 0)
+    FollowersNo = models.PositiveIntegerField(default=0)
     ExperienceYears=models.IntegerField(blank=True, null=True)
     Rating = models.DecimalField(max_digits=10, decimal_places=2,default= 5.0,validators=(MinValueValidator(0.0), MaxValueValidator(5.0)))
     Orders = models.IntegerField(blank=True, null=True)
@@ -152,21 +154,27 @@ class Address(models.Model):
         return f"{self.user.get_full_name}"
     
 class Follow(models.Model):
-    Customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
-    Supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
+    follower_content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, default=ContentType.objects.get_for_model(Customer).id)  # Can be Customer or Supplier
+    follower_object_id = models.PositiveIntegerField(default=0)
+    follower = GenericForeignKey('follower_content_type', 'follower_object_id')
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)  # The supplier being followed
 
     def __str__(self):
-        return f"{self.Customer.user.get_full_name} follow {self.Supplier.user.get_full_name}"
-    
+        return f"{self.follower} follows {self.supplier.user.get_full_name()}"
+
     class Meta:
-        unique_together = ('Customer','Supplier')
+        unique_together = ('follower_content_type', 'follower_object_id', 'supplier')
     
-@receiver(post_save,sender=Follow)
-def Update_FollowersNO(sender,instance,created, **kwargs):
+@receiver(post_save, sender=Follow)
+def update_followers_count_on_create(sender, instance, created, **kwargs):
     if created:
-        if instance.Supplier:
-            instance.Supplier.FollowersNo +=1
-            instance.Supplier.save()
+        instance.supplier.FollowersNo += 1
+        instance.supplier.save()
+
+@receiver(post_delete, sender=Follow)
+def update_followers_count_on_delete(sender, instance, **kwargs):
+    instance.supplier.FollowersNo -= 1
+    instance.supplier.save()
 
 class OneTimePassword(models.Model):
     user=models.OneToOneField(User, on_delete=models.CASCADE)

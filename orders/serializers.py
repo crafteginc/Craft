@@ -197,7 +197,7 @@ class OrderListRetrieveSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Order
-        fields = ("id","user","address","from_address","items", "total_cost","payment_method" ,"status", "created_at", "updated_at",'confirmation_code')
+        fields = ("id","user","address","from_address","items", "total_cost","payment_method" ,"paid","status", "created_at", "updated_at",'confirmation_code')
 
     def get_total_cost(self, obj: Order):
         return obj.get_total_cost()

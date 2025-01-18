@@ -178,7 +178,7 @@ class SupplierReviewList(generics.ListAPIView):
         supplier_id = self.kwargs.get('supplier_id')
         if not Supplier.objects.filter(id=supplier_id).exists(): 
             raise NotFound({"detail": "Supplier not found."})
-        products = Product.objects.filter(supplier_id=supplier_id)
+        products = Product.objects.filter(Supplier_id=supplier_id)
         if not products.exists():
             raise NotFound({"detail": "No products found for this supplier."})
         queryset = Review.objects.filter(product__in=products)
