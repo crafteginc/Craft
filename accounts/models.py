@@ -160,7 +160,7 @@ class Follow(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)  # The supplier being followed
 
     def __str__(self):
-        return f"{self.follower} follows {self.supplier.user.get_full_name()}"
+        return f"{self.follower} follows {self.supplier.user.get_full_name}"
 
     class Meta:
         unique_together = ('follower_content_type', 'follower_object_id', 'supplier')

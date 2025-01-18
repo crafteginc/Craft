@@ -343,6 +343,10 @@ class FollowSupplier(APIView):
             else:
                 return Response({'message': 'User must be a customer or supplier'}, status=status.HTTP_400_BAD_REQUEST)
             
+            # Check if the supplier is trying to follow themselves
+            if isinstance(follower, Supplier) and follower == supplier:
+                return Response({'message': 'A supplier cannot follow themselves'}, status=status.HTTP_400_BAD_REQUEST)
+            
             follower_content_type = ContentType.objects.get_for_model(follower)
             follow_exists = Follow.objects.filter(
                 follower_content_type=follower_content_type,
@@ -377,6 +381,10 @@ class FollowSupplier(APIView):
             else:
                 return Response({'message': 'User must be a customer or supplier'}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Check if the supplier is trying to unfollow themselves
+            if isinstance(follower, Supplier) and follower == supplier:
+                return Response({'message': 'A supplier cannot unfollow themselves'}, status=status.HTTP_400_BAD_REQUEST)
+
             follower_content_type = ContentType.objects.get_for_model(follower)
             follow = Follow.objects.get(
                 follower_content_type=follower_content_type,
@@ -392,6 +400,7 @@ class FollowSupplier(APIView):
             return Response({'message': 'You are not following this supplier'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         
 class PasswordResetRequestView(APIView):
     serializer_class = EmailVerificationSerializer

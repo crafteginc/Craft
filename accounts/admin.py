@@ -30,13 +30,27 @@ class AddressAdmin(admin.ModelAdmin):
     list_filter = ('City', 'State')
 
 class FollowAdmin(admin.ModelAdmin):
-    list_display = ('get_follower_name', 'get_follower_type', 'get_supplier_name')
+    # Display the follower's name and the supplier's name in the admin list
+    def get_follower_name(self, obj):
+        return obj.follower.user.get_full_name if obj.follower else 'No follower'
+
+    get_follower_name.admin_order_field = 'follower'  # Allows sorting by follower name
+    get_follower_name.short_description = 'Follower'  # Custom column header
+
+    list_display = ('get_follower_name', 'supplier')
+
+    # Search functionality: allows searching by follower's ID and supplier's info
     search_fields = (
         'follower_object_id',  # Allows searching by the ID of the follower
-        'supplier__user__email', 
-        'supplier__user__first_name', 
-        'supplier__user__last_name'
+        'supplier__user__email',
+        'supplier__user__first_name',
+        'supplier__user__last_name',
+        'follower__user__email',  # To allow searching by the follower's email
+        'follower__user__first_name',  # To allow searching by the follower's first name
+        'follower__user__last_name'  # To allow searching by the follower's last name
     )
+
+    # Filter options: allows filtering by follower type (Customer/Supplier) and supplier
     list_filter = ('follower_content_type', 'supplier')
 
 class OneTimePasswordAdmin(admin.ModelAdmin):
