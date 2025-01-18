@@ -32,7 +32,7 @@ class AddressAdmin(admin.ModelAdmin):
 class FollowAdmin(admin.ModelAdmin):
     # Display the follower's name and the supplier's name in the admin list
     def get_follower_name(self, obj):
-        return obj.follower.user.get_full_name if obj.follower else 'No follower'
+        return obj.follower.get_full_name if obj.follower else 'No follower'
 
     get_follower_name.admin_order_field = 'follower'  # Allows sorting by follower name
     get_follower_name.short_description = 'Follower'  # Custom column header
