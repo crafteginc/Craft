@@ -295,15 +295,17 @@ class SuppliersList(ListAPIView):
                 # Determine the follower object type (Customer or Supplier)
                 if hasattr(user, 'customer'):  # If user is a customer
                     follower_content_type = ContentType.objects.get_for_model(Customer)
+                    follower_object_id = user.customer.id
                 elif hasattr(user, 'supplier'):  # If user is a supplier
                     follower_content_type = ContentType.objects.get_for_model(Supplier)
+                    follower_object_id = user.supplier.id
                 else:
                     continue  # If the user is neither a customer nor supplier, skip this user
 
                 # Check if the user follows the supplier
                 is_followed = Follow.objects.filter(
                     follower_content_type=follower_content_type,
-                    follower_object_id=user.id,  # Using follower.id
+                    follower_object_id=follower_object_id,  # Using follower.id
                     supplier=supplier_id
                 ).exists()
 
@@ -340,21 +342,23 @@ class SupplierDetail(APIView):
         if hasattr(user, 'customer'):  # If the user is a Customer
             follower = user.customer
             follower_content_type = ContentType.objects.get_for_model(Customer)
+            follower_id = follower.id
         elif hasattr(user, 'supplier'):  # If the user is a Supplier
             follower = user.supplier
             follower_content_type = ContentType.objects.get_for_model(Supplier)
+            follower_id = follower.id
         else:
             return Response({'message': 'User must be a customer or supplier'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the current user follows the supplier
         is_followed = Follow.objects.filter(
             follower_content_type=follower_content_type,
-            follower_object_id=user.id,
+            follower_object_id=follower_id,
             supplier=supplier
         ).exists()
 
         # Debug: Check the query being made
-        print(f"Checking follow relationship: User {user.id} -> Supplier {supplier.id} -> Follow exists: {is_followed}")
+        print(f"Checking follow relationship: User {follower_id} -> Supplier {supplier.id} -> Follow exists: {is_followed}")
 
         # Transform the data to include only the desired fields for the supplier
         transformed_supplier = {
@@ -399,7 +403,7 @@ class FollowSupplier(APIView):
             follower_content_type = ContentType.objects.get_for_model(follower)
             follow_exists = Follow.objects.filter(
                 follower_content_type=follower_content_type,
-                follower_object_id=user.id,
+                follower_object_id=follower.id,
                 supplier=supplier
             ).exists()
             
@@ -408,7 +412,7 @@ class FollowSupplier(APIView):
             
             Follow.objects.create(
                 follower_content_type=follower_content_type,
-                follower_object_id=user.id,
+                follower_object_id=follower.id,
                 supplier=supplier
             )
             return Response({'message': 'Followed'}, status=status.HTTP_201_CREATED)
@@ -437,7 +441,7 @@ class FollowSupplier(APIView):
             follower_content_type = ContentType.objects.get_for_model(follower)
             follow = Follow.objects.get(
                 follower_content_type=follower_content_type,
-                follower_object_id=user.id,
+                follower_object_id=follower.id,
                 supplier=supplier
             )
             follow.delete()
