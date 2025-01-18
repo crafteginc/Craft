@@ -11,6 +11,8 @@ urlpatterns = [
     
     path('',include(router.urls)),
     path('productsByFollowedSuppliers/',FollowedSuppliersProducts.as_view(),name='productsByFollowedSuppliers'),
+    path('latest-followed-suppliers-collections/', LatestFollowedSuppliersCollections.as_view(), name='latest_followed_suppliers_collections'),
+    path('latest-collections/<int:collection_id>/', CollectionDetailView.as_view(), name='collection-detail'),
     path('ProductsByCategory/<slug:Slug>/',ProductsByCategory.as_view()),
     path('categories/',Categories.as_view()),
     path('Materials/',Mataterials.as_view()),

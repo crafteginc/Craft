@@ -1,7 +1,6 @@
-from django.shortcuts import render, get_object_or_404
 from .serializers import *
-from accounts.serializers import AcountProductSerializer 
-from .models import Category, Product, ProImage, MatCategory
+from accounts.serializers import AccountProductSerializer 
+from .models import Category, Product, MatCategory
 from accounts.models import Follow
 from rest_framework.response import Response
 from rest_framework import status ,permissions,viewsets
@@ -15,7 +14,7 @@ from rest_framework.views import APIView
 from rest_framework .exceptions import ValidationError
 from accounts.models import Supplier
 from .permissions import *
-from PIL import Image
+from django.contrib.contenttypes.models import ContentType
 
 class Categories(APIView):
     #permission_classes = [permissions.IsAuthenticated]
@@ -91,20 +90,43 @@ class ProductsViewSet(ModelViewSet):
 
 class FollowedSuppliersProducts(APIView):
     def get(self, request):
-        # Check if the user is authenticated and is a customer
-        if not request.user.is_authenticated or not request.user.is_customer:
+        # Check if the user is authenticated
+        if not request.user.is_authenticated:
             return Response({"error": "Not authorized"}, status=status.HTTP_401_UNAUTHORIZED)
-        # Get the customer
-        customer = request.user.customer
-        # Get the suppliers that the customer has followed
-        followed_suppliers = Follow.objects.filter(Customer=customer).values_list('Supplier', flat=True)
+        
+        # Check if the user is a customer or supplier
+        if hasattr(request.user, 'customer'):
+            # User is a customer, get the customer's followed suppliers
+            customer = request.user.customer
+            follower_content_type = ContentType.objects.get_for_model(customer)  # ContentType for customer
+            followed_suppliers = Follow.objects.filter(
+                follower_content_type=follower_content_type, 
+                follower_object_id=customer.id
+            ).values_list('supplier', flat=True)
+        
+        elif hasattr(request.user, 'supplier'):
+            # User is a supplier, get the supplier's followed suppliers
+            supplier = request.user.supplier
+            follower_content_type = ContentType.objects.get_for_model(supplier)  # ContentType for supplier
+            followed_suppliers = Follow.objects.filter(
+                follower_content_type=follower_content_type, 
+                follower_object_id=supplier.id
+            ).values_list('supplier', flat=True)
+        
+        else:
+            return Response({"error": "User must be a customer or supplier"}, status=status.HTTP_400_BAD_REQUEST)
+        
         # Get the products of the followed suppliers
         products = Product.objects.filter(Supplier__in=followed_suppliers)
+
         # Order the products by their Publish_Date (newest first)
         products = products.order_by('-Publish_Date')
+
+        # Get the 10 newest products
         newest_products = products[:10]    
+
         # Serialize the products and return the response
-        serializer = AcountProductSerializer(newest_products, many=True)
+        serializer = TrendingProductSerializer(newest_products, many=True)
         return Response(serializer.data)
     
 class Mataterials(APIView):
@@ -120,7 +142,7 @@ class ProductsByMaterials(APIView):
         try:
             material = MatCategory.objects.get(Slug=Slug)
             products = material.MatCatPro.filter(OutOfStock =  False)
-            serializer = AcountProductSerializer(products, many=True)
+            serializer = AccountProductSerializer(products, many=True)
             return Response(serializer.data)
         except MatCategory.DoesNotExist:
             return Response({"message": "material not found"}, status=404)
@@ -140,3 +162,52 @@ class CollectionViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(supplier=self.request.user.supplier)
 
     permission_classes = [IsSupplier]
+
+class CollectionDetailView(APIView):
+    def get(self, request, collection_id):
+        try:
+            # Retrieve the collection
+            collection = Collection.objects.prefetch_related('items__product').get(id=collection_id)
+            
+            # Serialize the collection data
+            serializer = CollectionSerializer(collection)
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Collection.DoesNotExist:
+            return Response({"error": "Collection not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class LatestFollowedSuppliersCollections(APIView):
+    def get(self, request):
+        # Check if the user is authenticated
+        if not request.user.is_authenticated:
+            return Response({"error": "Not authorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Determine if the user is a customer or supplier
+        if hasattr(request.user, 'customer'):
+            # If user is a customer, get the customer instance
+            follower = request.user.customer
+        elif hasattr(request.user, 'supplier'):
+            # If user is a supplier, get the supplier instance
+            follower = request.user.supplier
+        else:
+            return Response({"error": "User must be a customer or supplier"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get ContentType for the follower
+        follower_content_type = ContentType.objects.get_for_model(follower)
+
+        # Fetch the suppliers followed by the user
+        followed_supplier_ids = Follow.objects.filter(
+            follower_content_type=follower_content_type,
+            follower_object_id=follower.id
+        ).values_list('supplier_id', flat=True)
+
+        # Fetch the latest collections from the followed suppliers
+        collections = Collection.objects.filter(
+            supplier__id__in=followed_supplier_ids
+        ).order_by('-created_at')[:10]  # Fetch the latest 10 collections
+
+        # Serialize the collections
+        serializer = LatestCollectionSerializer(collections, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

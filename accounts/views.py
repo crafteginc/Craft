@@ -1,4 +1,3 @@
-import re
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from .permissions import IsCustomerorSupplier
@@ -327,7 +326,7 @@ class SuppliersList(ListAPIView):
 class TrendingSuppliersAPIView(APIView):
     permission_classes = [IsCustomerorSupplier] 
     def get(self, request, format=None):
-        trending_suppliers = Supplier.objects.order_by('-Rating','-Orders')[:10]  # Fetch top 10 suppliers based on rating
+        trending_suppliers = Supplier.objects.filter(user__is_verified=True, user__is_active=True).order_by('-Rating','-Orders')[:10]  # Fetch top 10 suppliers based on rating
         serializer = CraftersSerializer(trending_suppliers, many=True)
         return Response(serializer.data)
     

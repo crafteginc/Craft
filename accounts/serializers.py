@@ -22,7 +22,7 @@ class AddressSerializer(serializers.ModelSerializer):
         model = Address
         fields = ['id','BuildingNO','Street','City','State']
 
-class AcountProductSerializer(serializers.ModelSerializer):
+class AccountProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     class Meta:
         model = Product
@@ -228,7 +228,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
 
 class SupplierProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
- products = AcountProductSerializer(many=True, source='product_set') 
+ products = AccountProductSerializer(many=True, source='product_set') 
  class Meta:
         model = Supplier
         fields =  ['user','id','SupplierCover','SupplierPhoto','CategoryTitle','ExperienceYears','Rating','Orders','products','accepted_supplier']
@@ -287,7 +287,7 @@ class deliveryProfileSerializer(serializers.ModelSerializer):
 
 class CraftersSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
-    SupplierProducts = AcountProductSerializer(many=True, read_only=True)
+    SupplierProducts = AccountProductSerializer(many=True, read_only=True)
     class Meta:
         model = Supplier
         fields = ('id','user', 'CategoryTitle','SupplierPhoto', 'SupplierProducts')

@@ -93,6 +93,21 @@ class ProductSerializer(serializers.ModelSerializer):
 
         return product
 
+class TrendingProductSerializer(serializers.ModelSerializer):
+    images = ProductImageSerializer(many=True, read_only=True)
+    supplier_full_name = serializers.CharField(source='Supplier.user.get_full_name', read_only=True)
+    supplier_photo = serializers.ImageField(source='Supplier.SupplierPhoto', read_only=True)
+
+    class Meta:
+        model = Product
+        fields = ['id', 'images', 'ProductName', 'UnitPrice', 'supplier_full_name', 'supplier_photo']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if data['images']:
+            data['images'] = [data['images'][0]]  # Include only the first image
+        return data
+
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
@@ -152,5 +167,32 @@ class CollectionCreateUpdateSerializer(serializers.ModelSerializer):
         
         return instance 
 
+class LatestCollectionSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+    supplier_full_name = serializers.SerializerMethodField()
+    supplier_photo = serializers.SerializerMethodField()
 
-    
+    class Meta:
+        model = Collection
+        fields = ['id', 'image', 'name', 'supplier_full_name', 'supplier_photo']
+
+    def get_image(self, obj):
+        # Get the first image of the first product in the collection
+        first_item = obj.items.first()
+        if first_item and first_item.product.images.exists():
+            return first_item.product.images.first().image.url
+        return None
+
+    def get_supplier_full_name(self, obj):
+        # Get the full name of the supplier who owns the collection
+        supplier = obj.supplier
+        if supplier and supplier.user:
+            return f"{supplier.user.first_name} {supplier.user.last_name}"
+        return None
+
+    def get_supplier_photo(self, obj):
+        # Get the photo of the supplier who owns the collection
+        supplier = obj.supplier
+        if supplier and supplier.photo:
+            return supplier.photo.url
+        return None

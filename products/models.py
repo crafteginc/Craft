@@ -6,6 +6,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.dispatch import receiver
 from django.db.models.signals import pre_save
 from django.db.models import Avg
+from django.utils.timezone import now
 
 class Category(models.Model):
     CategoryID = models.AutoField(primary_key=True)
@@ -99,9 +100,30 @@ class ProSizes(models.Model):
         return self.product.ProductName
 
 class Collection(models.Model):
-    supplier = models.ForeignKey(Supplier, related_name='collections', on_delete=models.CASCADE)
+    supplier = models.ForeignKey(
+        Supplier, 
+        related_name='collections', 
+        on_delete=models.CASCADE
+    )
     name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(default=now, editable=False)
+
+    def __str__(self):
+        return self.name
 
 class CollectionItem(models.Model):
-    collection = models.ForeignKey(Collection, related_name='items', on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, related_name='collection_items', on_delete=models.CASCADE)
+    collection = models.ForeignKey(
+        Collection, 
+        related_name='items', 
+        on_delete=models.CASCADE
+    )
+    product = models.ForeignKey(
+        Product, 
+        related_name='collection_items', 
+        on_delete=models.CASCADE
+    )
+    added_at = models.DateTimeField(default=now, editable=False)
+
+    def __str__(self):
+        return f"{self.product.ProductName} in {self.collection.name}"
+
