@@ -265,35 +265,53 @@ class StandardResultsSetPagination(PageNumberPagination):
     max_page_size = 100
 
 class SuppliersList(ListAPIView):
-    queryset = Supplier.objects.filter(user__is_verified=True,user__is_active=True).order_by('id')
     serializer_class = CraftersSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['CategoryTitle','Rating','ExperienceYears']
+    filterset_fields = ['CategoryTitle', 'Rating', 'ExperienceYears']
     search_fields = ['user_first_name', 'user_last_name']
     ordering_fields = ['user_first_name']
     pagination_class = StandardResultsSetPagination
-# filters, search terms, or ordering
+
     def get_serializer_context(self):
         return {'request': self.request}
 
-    def get(self, request, *args, **kwargs):
-     response = super().get(request, *args, **kwargs)
-    
-    # Transform the data to include only the desired fields
-     transformed_data = []
-     for supplier in response.data.get('results', []):
-        if isinstance(supplier, dict):  # Check if supplier is a dictionary
-            transformed_supplier = {
-                "id": supplier.get('id', ''),  # Use .get() method to safely access 'id'
-                'full_name': supplier['user']['full_name'] if 'user' in supplier else '',
-                'SupplierPhoto': supplier.get('SupplierPhoto', ''),
-                'CategoryTitle': supplier.get('CategoryTitle','')
-            }
-            transformed_data.append(transformed_supplier)
-        else:
-            print(f"Invalid supplier data: {supplier}")
+    def get_queryset(self):
+        # Exclude the logged-in user from the queryset
+        user = self.request.user
+        return Supplier.objects.filter(user__is_verified=True, user__is_active=True).exclude(user=user).order_by('id')
 
-     return Response(transformed_data)
+    def get(self, request, *args, **kwargs):
+        response = super().get(request, *args, **kwargs)
+
+        # Get the current user
+        user = request.user
+        
+        transformed_data = []
+        for supplier in response.data.get('results', []):
+            if isinstance(supplier, dict):
+                supplier_id = supplier.get('id', '')
+
+                # Check if the current user follows the supplier
+                is_followed = Follow.objects.filter(
+                    follower_content_type=ContentType.objects.get_for_model(Customer),
+                    follower_object_id=user.id,  # Assuming user is a Customer
+                    supplier=supplier_id
+                ).exists()
+
+                # Add the `followed_by_user` key
+                transformed_supplier = {
+                    "id": supplier_id,
+                    'full_name': supplier['user']['full_name'] if 'user' in supplier else '',
+                    'SupplierPhoto': supplier.get('SupplierPhoto', ''),
+                    'CategoryTitle': supplier.get('CategoryTitle', ''),
+                    'followed_by_user': is_followed  # Add this line to include follow status
+                }
+
+                transformed_data.append(transformed_supplier)
+            else:
+                print(f"Invalid supplier data: {supplier}")
+
+        return Response(transformed_data)
 
 class TrendingSuppliersAPIView(APIView):
     permission_classes = [IsCustomerorSupplier] 
@@ -400,8 +418,7 @@ class FollowSupplier(APIView):
             return Response({'message': 'You are not following this supplier'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        
+      
 class PasswordResetRequestView(APIView):
     serializer_class = EmailVerificationSerializer
 
