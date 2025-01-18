@@ -39,21 +39,6 @@ class FollowAdmin(admin.ModelAdmin):
     )
     list_filter = ('follower_content_type', 'supplier')
 
-    def get_follower_name(self, obj):
-        return str(obj.follower)
-
-    get_follower_name.short_description = 'Follower Name'
-
-    def get_follower_type(self, obj):
-        return obj.follower_content_type.model
-
-    get_follower_type.short_description = 'Follower Type'
-
-    def get_supplier_name(self, obj):
-        return obj.supplier.user.get_full_name() if obj.supplier else "N/A"
-
-    get_supplier_name.short_description = 'Supplier Name'
-
 class OneTimePasswordAdmin(admin.ModelAdmin):
     list_display = ('user', 'otp')
     search_fields = ('user__email', 'user__first_name', 'user__last_name', 'otp')
