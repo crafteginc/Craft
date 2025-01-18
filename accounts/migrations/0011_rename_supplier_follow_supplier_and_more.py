@@ -5,16 +5,6 @@ from django.db import migrations, models
 from django.contrib.contenttypes.models import ContentType
 
 
-def set_default_content_type(apps, schema_editor):
-    """
-    Set the default value for the `follower_content_type` field based on the `Customer` model.
-    """
-    Follow = apps.get_model('accounts', 'Follow')
-    Customer = apps.get_model('accounts', 'Customer')
-    content_type = ContentType.objects.get_for_model(Customer)
-    Follow.objects.update(follower_content_type=content_type)
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -23,40 +13,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameField(
-            model_name='follow',
-            old_name='Supplier',
-            new_name='supplier',
-        ),
-        # Add follower_content_type field
-        migrations.AddField(
-            model_name='follow',
-            name='follower_content_type',
-            field=models.ForeignKey(
-                to='contenttypes.contenttype',
-                on_delete=django.db.models.deletion.CASCADE,
-                null=True,
-            ),
-        ),
-        # Add follower_object_id field
-        migrations.AddField(
-            model_name='follow',
-            name='follower_object_id',
-            field=models.PositiveIntegerField(default=0),
-        ),
-        # Update existing rows to set default follower_content_type
-        migrations.RunPython(set_default_content_type, migrations.RunPython.noop),
-        # Apply unique_together constraint
-        migrations.AlterUniqueTogether(
-            name='follow',
-            unique_together={('follower_content_type', 'follower_object_id', 'supplier')},
-        ),
-        # Alter FollowersNo field in Supplier
-        migrations.AlterField(
-            model_name='supplier',
-            name='FollowersNo',
-            field=models.PositiveIntegerField(default=0),
-        ),
         # Remove the Customer field
         migrations.RemoveField(
             model_name='follow',
