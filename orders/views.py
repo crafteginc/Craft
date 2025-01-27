@@ -6,6 +6,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from rest_framework.views import APIView
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import transaction
@@ -21,6 +22,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from returnrequest.models import transactions
 from .permissions import DeliveryContractProvided
 from .craft import get_craft_user_by_email
+
 class WishlistViewSet(viewsets.ModelViewSet):
     queryset = Wishlist.objects.all()
     serializer_class = WishlistSerializer
@@ -578,6 +580,16 @@ class OrdersHistoryViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vie
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
+class OrdersCreatedTodayView(APIView):
+    def get(self, request):
+        # Get the current date at midnight
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Count the number of orders created today
+        orders_count = Order.objects.filter(created_at__gte=today_start).count()
+
+        return Response({"orders_created_today": orders_count or 0}, status=status.HTTP_200_OK)
+    
 class RturnOrdersProductsViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = ReturnRequestListRetrieveSerializer  
     permission_classes = [IsAuthenticated]

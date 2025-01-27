@@ -128,26 +128,99 @@ class MatCatProSerializer(serializers.ModelSerializer):
         model = Product
         fields = ['MatCatPro']
 
+class CollectionProductSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['ProductName', 'image', 'UnitPrice']  
+
+    def get_image(self, obj):
+        # Fetch the first image of the product
+        first_image = obj.images.first()
+        if first_image and first_image.image:
+            return first_image.image.url
+        return None  # Return None if no image is available
+    
 class CollectionItemSerializer(serializers.ModelSerializer):
-    product = ProductImageSerializer()
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = CollectionItem
-        fields = ['id', 'product']
+        fields = ['id', 'image', 'product']
+
+    def get_image(self, obj):
+        # Get the first image of the product associated with this collection item
+        if obj.product.images.exists():
+            return obj.product.images.first().image.url
+        return None
 
 class CollectionSerializer(serializers.ModelSerializer):
-    items = CollectionItemSerializer(many=True, read_only=True)
+    images = serializers.SerializerMethodField()  # For the first 4 images, if needed
+    products = CollectionItemSerializer(source='items', many=True)  # Get all products from collection items
 
     class Meta:
         model = Collection
-        fields = ['id', 'name', 'items']
+        fields = ['id', 'name', 'images', 'products']  # Add 'products' to the fields
 
+    def get_images(self, obj):
+        first_items = obj.items.all()[:4]  # Get the first 4 collection items
+        image_urls = []
+        for item in first_items:
+            if item.product and item.product.images.exists():
+                first_image = item.product.images.first()
+                if first_image.image:
+                    image_urls.append(first_image.image.url)
+        return image_urls if image_urls else None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        view = self.context.get('view')
+
+        # Check if we are in the 'list' action (GET /product/collections/)
+        if view and view.action == 'list':  # 'list' is the action for listing all collections
+            data.pop('products', None)  # Remove products field for list view
+        
+        # Check if we are in the 'retrieve' action (GET /product/collections/{id}/)
+        if view and view.action == 'retrieve':  # 'retrieve' is for a specific collection
+            data.pop('images', None)  # Remove images field for specific collection view
+
+        return data
+    
 class CollectionCreateUpdateSerializer(serializers.ModelSerializer):
     items = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), many=True)
 
     class Meta:
         model = Collection
         fields = ['id', 'name', 'items']
+
+    def validate_items(self, value):
+        """
+        Ensure the products belong to the authenticated supplier and 
+        check for duplicate products in the same collection.
+        """
+        supplier = self.context['request'].user.supplier  # Get the supplier from the request context
+        invalid_products = [Product.id for Product in value if Product.Supplier != supplier]
+
+        if invalid_products:
+            raise serializers.ValidationError(
+                f"You can only add your own products. Invalid product IDs: {invalid_products}"
+            )
+
+        # Check for duplicate products within the same collection
+        collection = self.instance  # This will be set when updating a collection
+        product_ids = [Product.id for Product in value]
+        if collection:
+            existing_product_ids = collection.items.values_list('product', flat=True)
+            duplicate_products = set(product_ids) & set(existing_product_ids)
+
+            if duplicate_products:
+                raise serializers.ValidationError(
+                    f"These products have already been added to the collection: {list(duplicate_products)}"
+                )
+
+        return value
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
@@ -157,15 +230,29 @@ class CollectionCreateUpdateSerializer(serializers.ModelSerializer):
         return collection
 
     def update(self, instance, validated_data):
-        items_data = validated_data.pop('items')
+        items_data = validated_data.pop('items', None)
+
+        # Check if the user is adding products to the existing collection
+        if items_data:
+            # Check for duplicates in the current collection
+            product_ids = [item.id for item in items_data]
+            existing_product_ids = instance.items.values_list('product', flat=True)
+
+            duplicate_products = set(product_ids) & set(existing_product_ids)
+            if duplicate_products:
+                raise serializers.ValidationError(
+                    f"These products have already been added to the collection: {list(duplicate_products)}"
+                )
+
+            # Add new items to the collection
+            for item in items_data:
+                CollectionItem.objects.create(collection=instance, product=item)
+
+        # Update collection name if provided
         instance.name = validated_data.get('name', instance.name)
         instance.save()
-        
-        instance.items.all().delete()
-        for item in items_data:
-            CollectionItem.objects.create(collection=instance, product=item)
-        
-        return instance 
+
+        return instance
 
 class LatestCollectionSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
@@ -180,9 +267,10 @@ class LatestCollectionSerializer(serializers.ModelSerializer):
         # Get the first image of the first product in the collection
         first_item = obj.items.first()
         if first_item and first_item.product.images.exists():
-            return first_item.product.images.first().image.url
-        return None
-
+            first_image = first_item.product.images.first()
+            if first_image.image:  # Ensure the image exists
+                return first_image.image.url  # Return the URL of the image
+        return None  # Return None if no image is available
     def get_supplier_full_name(self, obj):
         # Get the full name of the supplier who owns the collection
         supplier = obj.supplier
@@ -191,8 +279,9 @@ class LatestCollectionSerializer(serializers.ModelSerializer):
         return None
 
     def get_supplier_photo(self, obj):
-        # Get the photo of the supplier who owns the collection
+    # Ensure the supplier exists and has a SupplierPhoto
         supplier = obj.supplier
-        if supplier and supplier.photo:
-            return supplier.photo.url
+        if supplier and supplier.SupplierPhoto:
+            # Access the actual file's URL
+            return supplier.SupplierPhoto.url if supplier.SupplierPhoto else None
         return None

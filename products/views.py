@@ -88,6 +88,14 @@ class ProductsViewSet(ModelViewSet):
             raise ValidationError("You are not allowed to delete this product.")
         instance.delete()
 
+class SupplierProductsViewSet(viewsets.ModelViewSet):
+    serializer_class = AccountProductSerializer
+    permission_classes = [permissions.IsAuthenticated]  
+
+    def get_queryset(self):
+        supplier = self.request.user.supplier 
+        return Product.objects.filter(Supplier=supplier) 
+    
 class FollowedSuppliersProducts(APIView):
     def get(self, request):
         # Check if the user is authenticated
@@ -162,6 +170,23 @@ class CollectionViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(supplier=self.request.user.supplier)
 
     permission_classes = [IsSupplier]
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Custom destroy method to delete the collection only if the supplier
+        who created it is making the request.
+        """
+        collection = self.get_object()  # Get the collection instance based on URL parameter
+        supplier = self.request.user.supplier
+
+        # Ensure the supplier who owns the collection is the one making the request
+        if collection.supplier != supplier:
+            return Response({"error": "You are not authorized to delete this collection."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Proceed to delete the collection
+        collection.delete()
+
+        return Response({"message": "Collection deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 class CollectionDetailView(APIView):
     def get(self, request, collection_id):

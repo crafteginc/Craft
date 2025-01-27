@@ -16,5 +16,6 @@ router.register('coupons', views.CouponViewSet, basename='coupon')
 urlpatterns = [
     path('', include(router.urls)),
     path('orders/<int:pk>/cancel/', views.OrderViewSet.as_view({'post': 'cancel_order'}), name='cancel-order'),
+    path('today/', views.OrdersCreatedTodayView.as_view(), name='orders-created-today'),
     path('warehouses/', views.WarehouseListView.as_view(), name='warehouse-list'),
 ]
