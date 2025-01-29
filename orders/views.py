@@ -580,16 +580,6 @@ class OrdersHistoryViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vie
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
-class OrdersCreatedTodayView(APIView):
-    def get(self, request):
-        # Get the current date at midnight
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-        # Count the number of orders created today
-        orders_count = Order.objects.filter(created_at__gte=today_start).count()
-
-        return Response({"orders_created_today": orders_count or 0}, status=status.HTTP_200_OK)
-    
 class RturnOrdersProductsViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = ReturnRequestListRetrieveSerializer  
     permission_classes = [IsAuthenticated]

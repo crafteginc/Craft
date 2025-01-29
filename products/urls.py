@@ -5,7 +5,7 @@ from .views import *
 
 router=routers.DefaultRouter()
 router.register('products',ProductsViewSet)
-router.register('supplierproducts', SupplierProductsViewSet, basename='SupplierProducts')  # Register the new endpoint
+router.register('supplierproducts', SupplierProductsViewSet, basename='SupplierProducts') 
 router.register('collections', CollectionViewSet, basename='collection')
 
 urlpatterns = [

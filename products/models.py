@@ -25,10 +25,6 @@ class MatCategory(models.Model):
     Picture = models.ImageField(upload_to='category_images/%y/%m/%d', blank=True, null=True)
     Active = models.BooleanField(default=True)
     Slug = models.SlugField(null=True,blank=True, unique=True)
-    def save(self, *args, **kwargs):
-        if not self.Slug:
-         self.Slug=slugify(self.Title)
-         super(MatCategory,self).save(*args,**kwargs)
 
     def __str__(self):
         return self.Title

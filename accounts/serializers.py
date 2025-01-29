@@ -9,6 +9,8 @@ from rest_framework import serializers
 from .utils import Google, register_social_user
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
+from orders.models import Order
+from django.utils.timezone import now
 import re
 
 class UserSerializer(serializers.ModelSerializer):
@@ -227,13 +229,27 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
     return attrs
 
 class SupplierProfileSerializer(serializers.ModelSerializer):
- user = UserSerializer()
- products = AccountProductSerializer(many=True, source='product_set') 
- class Meta:
+    user = UserSerializer()
+    products = AccountProductSerializer(many=True, source='product_set')
+    orders_created_today = serializers.SerializerMethodField()  # Custom field for daily orders count
+
+    class Meta:
         model = Supplier
-        fields =  ['user','id','SupplierCover','SupplierPhoto','CategoryTitle','ExperienceYears','Rating','Orders','products','accepted_supplier']
-        read_only_fields = ['Orders','Rating']
- def update(self, instance, validated_data):
+        fields = [
+            'user', 'id', 'SupplierCover', 'SupplierPhoto', 'CategoryTitle', 
+            'ExperienceYears', 'Rating', 'Orders', 'products', 'accepted_supplier', 
+            'orders_created_today'  # Add the new field here
+        ]
+        read_only_fields = ['Orders', 'Rating']
+
+    def get_orders_created_today(self, obj):
+        """
+        Calculate the number of orders created today for the supplier.
+        """
+        today_start = now().replace(hour=0, minute=0, second=0, microsecond=0)
+        return Order.objects.filter(supplier=obj, created_at__gte=today_start).count()
+
+    def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})
         user = instance.user
         for attr, value in user_data.items():
@@ -244,17 +260,18 @@ class SupplierProfileSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
- def validate(self, attrs):
-    # Check if user data is present
-    user_data = attrs.get('user')
-    if user_data:
-        phone_no = str(user_data.get('PhoneNO', ''))
-        if not re.match(r'^(010|011|012|015)\d{8}$', phone_no):
-            raise serializers.ValidationError({"error": "Phone number must be in the format 01*"})
-        # Exclude the current user instance from the query if it exists
-        if User.objects.filter(PhoneNO=phone_no).exclude(pk=self.instance.user.pk).exists():
-            raise serializers.ValidationError({"error": "Phone number already exists"})
-    return attrs
+
+    def validate(self, attrs):
+        # Check if user data is present
+        user_data = attrs.get('user')
+        if user_data:
+            phone_no = str(user_data.get('PhoneNO', ''))
+            if not re.match(r'^(010|011|012|015)\d{8}$', phone_no):
+                raise serializers.ValidationError({"error": "Phone number must be in the format 01*"})
+            # Exclude the current user instance from the query if it exists
+            if User.objects.filter(PhoneNO=phone_no).exclude(pk=self.instance.user.pk).exists():
+                raise serializers.ValidationError({"error": "Phone number already exists"})
+        return attrs
 
 class deliveryProfileSerializer(serializers.ModelSerializer):
  user = UserSerializer()
