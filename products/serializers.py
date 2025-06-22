@@ -129,42 +129,36 @@ class MatCatProSerializer(serializers.ModelSerializer):
         fields = ['MatCatPro']
 
 class CollectionProductSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source='pk')
     image = serializers.SerializerMethodField()
+    price = serializers.DecimalField(source='UnitPrice', max_digits=10, decimal_places=2)
+    name = serializers.CharField(source='ProductName') 
 
     class Meta:
         model = Product
-        fields = ['ProductName', 'image', 'UnitPrice']  
+        fields = ['id', 'name', 'image', 'price']  
 
     def get_image(self, obj):
-        # Fetch the first image of the product
         first_image = obj.images.first()
         if first_image and first_image.image:
             return first_image.image.url
-        return None  # Return None if no image is available
-    
-class CollectionItemSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-
-    class Meta:
-        model = CollectionItem
-        fields = ['id', 'image', 'product']
-
-    def get_image(self, obj):
-        # Get the first image of the product associated with this collection item
-        if obj.product.images.exists():
-            return obj.product.images.first().image.url
         return None
-
+    
 class CollectionSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()  # For the first 4 images, if needed
-    products = CollectionItemSerializer(source='items', many=True)  # Get all products from collection items
+    products = serializers.SerializerMethodField()
 
     class Meta:
         model = Collection
-        fields = ['id', 'name', 'images', 'products']  # Add 'products' to the fields
+        fields = ['id', 'name', 'images', 'products'] 
+        
+    def get_products(self, obj):
+        items = obj.items.all()
+        products = [item.product for item in items if item.product is not None]
+        return CollectionProductSerializer(products, many=True, context=self.context).data
 
     def get_images(self, obj):
-        first_items = obj.items.all()[:4]  # Get the first 4 collection items
+        first_items = obj.items.all()[:4]  
         image_urls = []
         for item in first_items:
             if item.product and item.product.images.exists():
