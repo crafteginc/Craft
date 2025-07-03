@@ -28,7 +28,7 @@ class AccountProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     class Meta:
         model = Product
-        fields = ['id','images','ProductName', 'UnitPrice']
+        fields = ['id','images','ProductName', 'UnitPrice','Discount']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

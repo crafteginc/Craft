@@ -14,9 +14,9 @@ urlpatterns = [
     path('productsByFollowedSuppliers/',FollowedSuppliersProducts.as_view(),name='productsByFollowedSuppliers'),
     path('latest-collections/', LatestFollowedSuppliersCollections.as_view(), name='latest_followed_suppliers_collections'),
     path('latest-collections/<int:collection_id>/', CollectionDetailView.as_view(), name='collection-detail'),
-    path('ProductsByCategory/<slug:Slug>/',ProductsByCategory.as_view()),
+    path('products-by-category/<slug:Slug>/',ProductsByCategory.as_view()),
     path('categories/',Categories.as_view()),
-    path('Materials/',Mataterials.as_view()),
-    path('ProductsByMaterials/<slug:Slug>/',ProductsByMaterials.as_view()),
+    path('materials/',Mataterials.as_view()),
+    path('products-by-materials/<slug:Slug>/',ProductsByMaterials.as_view()),
 
 ]
