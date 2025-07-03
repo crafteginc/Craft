@@ -67,16 +67,6 @@ class ProductsViewSet(ModelViewSet):
         supplier_instance = Supplier.objects.get(user=self.request.user)
         product = serializer.save(Supplier=supplier_instance)
 
-        # Automatically create or get the collection based on category
-        category_name = product.Category.Title
-        collection, created = Collection.objects.get_or_create(
-            supplier=supplier_instance,
-            name=category_name
-        )
-        
-        # Create a collection item for the new product
-        CollectionItem.objects.create(collection=collection, product=product)
-
     def perform_update(self, serializer):
         instance = serializer.instance
         if not self.request.user.is_supplier or instance.Supplier.user != self.request.user:
