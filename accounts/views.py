@@ -606,10 +606,20 @@ class SupplierDocumentViewSet(viewsets.ViewSet):
         except Supplier.DoesNotExist:
             return Response({'error': 'Supplier profile does not exist.'}, status=status.HTTP_404_NOT_FOUND)
 
+        # Null file checks
+        contract = request.FILES.get('SupplierContract')
+        identity = request.FILES.get('SupplierIdentity')
+
+        if not contract:
+            return Response({'error': 'SupplierContract file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not identity:
+            return Response({'error': 'SupplierIdentity file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = SupplierDocumentSerializer(supplier, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
+
         errors = [msg for error_list in serializer.errors.values() for msg in error_list]
         return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -625,11 +635,21 @@ class deliveryDocumentViewSet(viewsets.ViewSet):
         try:
             delivery = request.user.delivery
         except Delivery.DoesNotExist:
-            return Response({'message': 'delivery profile does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'message': 'Delivery profile does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Null checks for required files
+        license_file = request.FILES.get('DeliveryLicense')
+        identity_file = request.FILES.get('DeliveryIdentity')
+
+        if not license_file:
+            return Response({'error': 'DeliveryLicense file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not identity_file:
+            return Response({'error': 'DeliveryIdentity file is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = deliveryDocumentSerializer(delivery, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
+
         errors = [msg for error_list in serializer.errors.values() for msg in error_list]
         return Response({'message': errors}, status=status.HTTP_400_BAD_REQUEST)

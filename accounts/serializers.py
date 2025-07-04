@@ -366,8 +366,45 @@ class SupplierDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplier
         fields = ['SupplierContract', 'SupplierIdentity']
+
+    def validate_file(self, file):
+        if not file:
+            raise serializers.ValidationError("File is required.")
+
+        valid_mime_types = ['application/pdf', 'image/jpeg', 'image/png']
+        content_type = file.content_type
+
+        if content_type not in valid_mime_types:
+            raise serializers.ValidationError("Only PDF or image files (JPEG, PNG) are allowed.")
+
+        return file
+
+    def validate_SupplierContract(self, file):
+        return self.validate_file(file)
+
+    def validate_SupplierIdentity(self, file):
+        return self.validate_file(file)
         
 class deliveryDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Delivery
         fields = ['DeliveryContract', 'DeliveryIdentity']
+
+    def validate_file(self, file):
+        if not file:
+            raise serializers.ValidationError("File is required.")
+
+        valid_mime_types = ['application/pdf', 'image/jpeg', 'image/png']
+        content_type = file.content_type
+
+        if content_type not in valid_mime_types:
+            raise serializers.ValidationError("Only PDF or image files (JPEG, PNG) are allowed.")
+
+        return file
+
+    def validate_SupplierContract(self, file):
+        return self.validate_file(file)
+
+    def validate_SupplierIdentity(self, file):
+        return self.validate_file(file)
+        
