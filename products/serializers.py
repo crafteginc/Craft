@@ -51,6 +51,7 @@ class ProductSerializer(serializers.ModelSerializer):
                   "Discount", 
                   "DiscountPercentage",
                   "Category",
+                  "MatCategory",
                   "images", 
                   "uploaded_images", 
                   "Colors", 
