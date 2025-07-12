@@ -565,7 +565,7 @@ class LogoutApiView(GenericAPIView):
         serializer=self.serializer_class(data=request.data)
         serializer.is_valid()
         serializer.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({'message': 'Logged Out'},status=status.HTTP_204_NO_CONTENT)
 
 class GoogleOauthSignInview(GenericAPIView):
     serializer_class=GoogleSignInSerializer
