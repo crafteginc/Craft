@@ -267,7 +267,7 @@ class SuppliersList(ListAPIView):
     serializer_class = CraftersSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['CategoryTitle', 'Rating', 'ExperienceYears']
-    search_fields = ['user_first_name', 'user_last_name']
+    search_fields = ['user__first_name', 'user__last_name']
     ordering_fields = ['user_first_name']
     pagination_class = StandardResultsSetPagination
 
