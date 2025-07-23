@@ -264,6 +264,7 @@ class StandardResultsSetPagination(PageNumberPagination):
     max_page_size = 100
 
 class SuppliersList(ListAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = CraftersSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['CategoryTitle', 'Rating', 'ExperienceYears']
