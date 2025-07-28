@@ -362,7 +362,7 @@ class SupplierDetail(APIView):
 
         # Transform the data to include only the desired fields for the supplier
         transformed_supplier = {
-            "id": supplier.user.id,
+            "id": supplier.id,
             'full_name': supplier.user.get_full_name,
             'SupplierPhoto': supplier.SupplierPhoto.url if supplier.SupplierPhoto else None,
             'SupplierCover': supplier.SupplierCover.url if supplier.SupplierCover else None,
