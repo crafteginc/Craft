@@ -15,6 +15,7 @@ from rest_framework .exceptions import ValidationError
 from accounts.models import Supplier
 from .permissions import *
 from django.contrib.contenttypes.models import ContentType
+from rest_framework.generics import ListAPIView
 
 class Categories(APIView):
     #permission_classes = [permissions.IsAuthenticated]
@@ -23,21 +24,24 @@ class Categories(APIView):
         serializer = CategorySerializer(categories,many=True)
         return Response(serializer.data,status=status.HTTP_200_OK)
 
-class ProductsByCategory(APIView):
-    #permission_classes = [permissions.IsAuthenticated]
-    def get(self, request, Slug):
-        try:
-            category = Category.objects.get(Slug=Slug)
-            products = category.CatPro.filter(OutOfStock = False)
-            serializer = ProductSerializer(products, many=True)
-            return Response(serializer.data)
-        except Category.DoesNotExist:
-            return Response({"message": "Category not found"}, status=404)
-
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 100
+
+class ProductsByCategory(ListAPIView):
+    serializer_class = ProductSerializer
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    search_fields = ['ProductName', 'Description']  
+
+    def get_queryset(self):
+        slug = self.kwargs.get("Slug")
+        try:
+            category = Category.objects.get(Slug=slug)
+            return category.CatPro.filter(OutOfStock=False)
+        except Category.DoesNotExist:
+            return []
 
 class ProductsViewSet(ModelViewSet):
     queryset = Product.objects.filter( Stock__gt = 0 )
@@ -134,16 +138,20 @@ class Mataterials(APIView):
         serializer = MatCategorySerializer(materials,many=True)
         return Response(serializer.data,status=status.HTTP_200_OK)
 
-class ProductsByMaterials(APIView):
-    #permission_classes = [permissions.IsAuthenticated]
-    def get(self, request, Slug):
+class ProductsByMaterials(ListAPIView):
+    serializer_class = AccountProductSerializer
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    search_fields = ['ProductName','ProductDescription']
+    ordering_fields = ['UnitPrice']
+
+    def get_queryset(self):
+        slug = self.kwargs.get("Slug")
         try:
-            material = MatCategory.objects.get(Slug=Slug)
-            products = material.MatCatPro.filter(OutOfStock =  False)
-            serializer = AccountProductSerializer(products, many=True)
-            return Response(serializer.data)
+            material = MatCategory.objects.get(Slug=slug)
+            return material.MatCatPro.filter(OutOfStock=False)
         except MatCategory.DoesNotExist:
-            return Response({"message": "material not found"}, status=404)
+            return []  
 
 class CollectionViewSet(viewsets.ModelViewSet):
     queryset = Collection.objects.all()

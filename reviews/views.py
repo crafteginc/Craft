@@ -5,6 +5,7 @@ from .models import Review
 from rest_framework.exceptions import NotFound
 from .serializers import *
 from accounts.permissions import *
+from products.views import StandardResultsSetPagination
 
 class ProductReviewCreate(generics.CreateAPIView):
     serializer_class = ProductReviewSerializer
@@ -41,6 +42,7 @@ class ProductReviewUpdateDelete(generics.RetrieveUpdateDestroyAPIView):
 class ProductReviewList(generics.ListAPIView):
     serializer_class = ProductReviewSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination  
 
     def get_queryset(self):
         product_id = self.kwargs.get('product_id')
@@ -84,6 +86,7 @@ class CourseReviewUpdateDelete(generics.RetrieveUpdateDestroyAPIView):
 class CourseReviewList(generics.ListAPIView):
     serializer_class = CourseReviewSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         course_id = self.kwargs['course_id']
@@ -129,6 +132,7 @@ class DeliveryReviewUpdateDelete(generics.RetrieveUpdateDestroyAPIView):
 class DeliveryReviewList(generics.ListAPIView):
     serializer_class = DeliveryReviewSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         delivery_id = self.kwargs.get('delivery_id')
@@ -173,6 +177,7 @@ class SupplierReviewUpdateDelete(generics.RetrieveUpdateDestroyAPIView):
 class SupplierReviewList(generics.ListAPIView):
     serializer_class = ProductReviewSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         supplier_id = self.kwargs.get('supplier_id')
