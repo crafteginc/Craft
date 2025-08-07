@@ -112,6 +112,13 @@ if Craft:
     print("User found:", Craft)
 else:
     print("User not found.")
+
+def get_warehouse_by_name(state_name):
+    try:
+        return Warehouse.objects.get(name=state_name)
+    except Warehouse.DoesNotExist:
+        raise ValidationError(f"Warehouse not found for state: {state_name}")
+    
 class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.ListModelMixin,viewsets.GenericViewSet):
     serializer_class = OrderCreateSerializer
     queryset = Order.objects.all()
@@ -137,7 +144,13 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
         cart = Cart.objects.get(User=request.user)
         address_id = request.data.get("address_id")
         coupon_code = request.data.get("coupon_code")
-        payment_method = request.data.get("payment_method")
+        payment_method = request.data.get("payment_method", "").strip()
+
+        if not payment_method:
+            return Response({"detail": "Payment method is required."}, status=status.HTTP_400_BAD_REQUEST)
+        valid_payment_method = Order.PaymentMethod.values
+        if payment_method not in valid_payment_method :
+            return Response({"detail": "Invalid payment method."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not address_id:
             return Response({"detail": "Address ID is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -166,6 +179,8 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
             for id in Suppliers_id:
                 try:
                     addresses = Address.objects.filter(user=id)
+                    if not addresses.exists():
+                     return Response({"detail": f"Address not found for supplier with ID {id}."}, status=status.HTTP_400_BAD_REQUEST)
                     state_number = addresses.count()
                     if state_number >1:
                         Response({"detail": f"Multiple Addresses found for supplier with ID {id}."},status=status.HTTP_400_BAD_REQUEST)
@@ -182,7 +197,7 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                 To_State = address.State
                 supplier_address = supplier_addresses[list(Suppliers_id)[0]]
                 if From_State == To_State:
-                    warehouse = Warehouse.objects.get(name =  From_State  )
+                    warehouse = get_warehouse_by_name(From_State)
                     order = Order.objects.create(
                         user=request.user,
                         supplier = supplier_address.user.supplier,
@@ -197,7 +212,7 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                     )
                     Delivery_Fee += warehouse.delivery_fee
                 else :
-                    warehouse = Warehouse.objects.get(name = address.State)
+                    warehouse = get_warehouse_by_name(address.State)
                     order = Order.objects.create(
                         user=request.user,
                         supplier = supplier_address.user.supplier,
@@ -212,7 +227,7 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                     )
                     Delivery_Fee += warehouse.delivery_fee
                     related_order = order
-                    warehouse = Warehouse.objects.get(name = list(Supplier_states)[0] )
+                    warehouse = get_warehouse_by_name(list(Supplier_states)[0])
                     order = Order.objects.create(
                         user=request.user,
                         supplier = supplier_address.user.supplier,
@@ -229,7 +244,7 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                     Delivery_Fee += warehouse.delivery_fee +20
             
             elif len(Supplier_states) == 1 and len(Suppliers_id) > 1:
-                warehouse = Warehouse.objects.get(name = list(Supplier_states)[0])
+                warehouse = get_warehouse_by_name(list(Supplier_states)[0])
                 for cart_item in cart_items:
                     supplier_id = cart_item.Product.Supplier.user.id
                     supplier_address = supplier_addresses[supplier_id]
@@ -255,7 +270,7 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                     To_State = address.State
 
                     if Supplier_State == To_State:
-                        warehouse = Warehouse.objects.get(name = Supplier_State)
+                        warehouse = get_warehouse_by_name(Supplier_State)
                         order = Order.objects.create(
                         user=request.user,
                         supplier = supplier_address.user.supplier ,
@@ -270,7 +285,7 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                     )
                         Delivery_Fee += warehouse.delivery_fee 
                     else:
-                        warehouse = Warehouse.objects.get(name = address.State )
+                        warehouse = get_warehouse_by_name(address.State )
                         order = Order.objects.create(
                             user=request.user,
                             supplier = supplier_address.user.supplier ,
@@ -286,7 +301,7 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                         )
                         Delivery_Fee += warehouse.delivery_fee
                         related_order = order
-                        warehouse = Warehouse.objects.get(name = Supplier_State )
+                        warehouse = get_warehouse_by_name(Supplier_State )
                         order = Order.objects.create(
                             user=request.user,
                             supplier = supplier_address.user.supplier,
@@ -312,7 +327,9 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                     order=order,
                     product=cart_item.Product,
                     quantity=cart_item.Quantity,
-                    price=cart_item.Product.UnitPrice
+                    price=cart_item.Product.UnitPrice,
+                    color=cart_item.Color,
+                    size=cart_item.Size,
                 )
                 order_items.append(order_item)
                 if coupon_code and not discount_applied:
@@ -426,7 +443,7 @@ class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.List
                     confirmation_code = serializer.validated_data.get('confirmation_code')
                     if confirmation_code != order.confirmation_code:
                         return Response({"detail": "Invalid confirmation code."}, status=status.HTTP_400_BAD_REQUEST)
-                    warehouse = Warehouse.objects.get(name = user.delivery.governorate )
+                    warehouse = get_warehouse_by_name(user.delivery.governorate )
                     if order.related_order:
                         order.status = Order.OrderStatus.DELIVERED_SUCCESSFULLY
                         order.delivery_confirmed_at = timezone.now()

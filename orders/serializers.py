@@ -128,39 +128,53 @@ class CartSerializer(serializers.ModelSerializer):
        
 class AddCartItemSerializer(serializers.ModelSerializer):
     Product_id = serializers.IntegerField()
+    Color = serializers.CharField(required=False, allow_blank=True)
+    Size = serializers.CharField(required=False, allow_blank=True)
 
     def validate_Product_id(self, value):
         product = Product.objects.filter(id=value).first()
         if not product:
-            raise serializers.ValidationError("There is no product associated with the given ID")
+            raise serializers.ValidationError({"detail":"There is no product associated with the given ID"})
         return value
 
     def save(self, **kwargs):
         user = self.context['request'].user
         Product_id = self.validated_data["Product_id"]
         quantity = self.validated_data["Quantity"]
+        color = self.validated_data.get("Color", "")
+        size = self.validated_data.get("Size", "")
+        
         cart, _ = Cart.objects.get_or_create(User=user)
 
-        # Check if the product is owned by the user
         product = Product.objects.get(id=Product_id)
         if product.Supplier.user == user:
-            raise serializers.ValidationError("You cannot add your own product to the cart")
+            raise serializers.ValidationError({"detail":"You cannot add your own product to the cart"})
         
-        if quantity == 0 :
-            raise serializers.ValidationError(" Quantity Must be above 0 ")
+        if quantity == 0 or quantity > 10 :
+            raise serializers.ValidationError({"detail":"Quantity Must be above 0 and less than 10"})
+        if quantity > product.Stock :
+            raise serializers.ValidationError({"detail": f"Quantity of {product.ProductName} exceeds available stock."})
         try:
-            cart_item = CartItems.objects.get(Product_id=Product_id, CartID=cart)
+            cart_item = CartItems.objects.get(Product_id=Product_id, CartID=cart, Color=color, Size=size)
+            if cart_item.Quantity > product.Stock :
+                raise serializers.ValidationError({"detail": f"Quantity of {product.ProductName} exceeds available stock."})
             cart_item.Quantity += quantity
             cart_item.save()
             self.instance = cart_item
         except CartItems.DoesNotExist:
-            self.instance = CartItems.objects.create(CartID=cart, Product_id=Product_id, Quantity=quantity)
+            self.instance = CartItems.objects.create(
+                CartID=cart,
+                Product_id=Product_id,
+                Quantity=quantity,
+                Color=color,
+                Size=size
+            )
 
         return self.instance
 
     class Meta:
         model = CartItems
-        fields = ["id", "Product_id", "Quantity"]
+        fields = ["id", "Product_id", "Quantity", "Color", "Size"]
 
 class UpdateCartItemSerializer(serializers.ModelSerializer):
     # id = serializers.IntegerField(read_only=True)

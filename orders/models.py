@@ -36,7 +36,9 @@ class CartItems(models.Model):
     CartID = models.ForeignKey(Cart, on_delete=models.CASCADE,related_name="items", null=True, blank=True)
     Product = models.ForeignKey(Product, on_delete=models.CASCADE,related_name='cartitems',null=True, blank=True)
     Quantity = models.PositiveIntegerField()
-    
+    Color = models.CharField(max_length=20,blank=True, null=True) 
+    Size = models.CharField(max_length=20,blank=True, null=True) 
+
     def _str_(self):
         return f"Cart Item: {self.Product.ProductName}"
     
@@ -54,7 +56,7 @@ class Order(models.Model):
         CANCELLED = 'cancelled'
     
     class PaymentMethod(models.TextChoices):
-        CASH_ON_DELIVERY = 'Cash on Delivery '
+        CASH_ON_DELIVERY = 'Cash on Delivery'
         CREDIT_CARD='Credit Card'
         BALANCE = 'Balance'
 
@@ -104,6 +106,8 @@ class OrderItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    color = models.CharField(max_length=20,blank=True, null=True) 
+    size = models.CharField(max_length=20,blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
