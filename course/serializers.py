@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import Course, CourseVideos, Enrollment
-from orders.serializers import AddressSerializer
 from accounts.serializers import CraftersSerializer
 
 class SimpleCoursesSerializer(serializers.ModelSerializer):
@@ -9,7 +8,6 @@ class SimpleCoursesSerializer(serializers.ModelSerializer):
         fields = ['CourseID','Thumbnail','CourseTitle','CategoryID','Rating','NumberOfRatings','FromDate','address','Price','completed']
 
 class CourseSerializer(serializers.ModelSerializer):
-    address = AddressSerializer(many=False,read_only=True)
     Supplier = CraftersSerializer(many=False,read_only=True)
     class Meta:
         model = Course

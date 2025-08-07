@@ -238,7 +238,7 @@ class SupplierProfileSerializer(serializers.ModelSerializer):
         fields = [
             'user', 'id', 'SupplierCover', 'SupplierPhoto', 'CategoryTitle', 
             'ExperienceYears', 'Rating', 'Orders', 'products', 'accepted_supplier', 
-            'orders_created_today'  # Add the new field here
+            'orders_created_today'  
         ]
         read_only_fields = ['Orders', 'Rating']
 

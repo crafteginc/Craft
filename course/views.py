@@ -25,7 +25,7 @@ class CourseAPIView(viewsets.ModelViewSet):
         if not existing_course:
             serializer.save(Supplier=supplier_instance)
         else:
-            raise serializers.ValidationError("Course with this name already exists")
+            raise serializers.ValidationError({"message":"Course with this name already exists"})
         
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -52,10 +52,10 @@ class LectureListCreateAPIView(generics.ListCreateAPIView):
     def get_queryset(self):
         CourseID = self.request.query_params.get('CourseID')
         if not CourseID:
-            raise Http404("CourseID not provided.")
+            raise Http404({"message":"CourseID not provided."})
         
         if not Course.objects.filter(id=CourseID).exists():
-            raise Http404("Course not found.")
+            raise Http404({"message":"Course not found."})
 
         return CourseVideos.objects.filter(CourseID=CourseID)
 
@@ -139,11 +139,11 @@ class EnrolledCoursesAPIView(APIView):
                 serializer = CourseSerializer(courses, many=True)
                 return Response(serializer.data)
             except Customer.DoesNotExist:
-                return Response({"detail": "Customer profile does not exist."}, status=404)
+                return Response({"message": "Customer profile does not exist."}, status=404)
         
         elif user.is_supplier:
             
-            return Response({"detail": " Supplier Can't ُ Enroll Courses "}, status=501)
+            return Response({"message": " Supplier Can't ُ Enroll Courses "}, status=501)
         
         else:
-            return Response({"detail": " User does not have appropriate profile."}, status=403)
+            return Response({"message": " User does not have appropriate profile."}, status=403)
