@@ -5,19 +5,22 @@ from accounts.serializers import CraftersSerializer
 class SimpleCoursesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
-        fields = ['CourseID','Thumbnail','CourseTitle','CategoryID','Rating','NumberOfRatings','FromDate','address','Price','completed']
-
+        fields = [
+            'CourseID', 'Thumbnail', 'CourseTitle', 'CategoryID',
+            'Rating', 'NumberOfRatings', 'FromDate', 'address', 'Price', 'completed'
+        ]
 class CourseSerializer(serializers.ModelSerializer):
-    Supplier = CraftersSerializer(many=False,read_only=True)
+    Supplier = CraftersSerializer(many=False, read_only=True)
+
     class Meta:
         model = Course
-        fields = ['CourseID','Thumbnail',
-                  'CourseTitle','CategoryID',
-                  'Rating','completed',
-                  'NumberOfRatings','FromDate',
-                  'ToDate','CourseHours',
-                  'address','NumberOfLec',
-                  'Price','Description','Supplier']
+        fields = [
+            'CourseID', 'Thumbnail', 'CourseTitle', 'CategoryID',
+            'Rating', 'completed', 'NumberOfRatings', 'FromDate',
+            'ToDate', 'CourseHours', 'address', 'NumberOfLec',
+            'Price', 'Description', 'Supplier'
+        ]
+
 
 class CourseVideosSerializer(serializers.ModelSerializer):
     class Meta:

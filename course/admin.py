@@ -14,8 +14,8 @@ class CourseVideosAdmin(admin.ModelAdmin):
     ordering = ('CourseID', 'VideoNo')
 
 class EnrollmentAdmin(admin.ModelAdmin):
-    list_display = ('Course', 'Customer', 'EnrollmentDate')
-    search_fields = ('Course__CourseTitle', 'Customer__user__first_name', 'Customer__user__last_name')
+    list_display = ('Course', 'EnrolledUser', 'EnrollmentDate')
+    search_fields = ('Course__CourseTitle', 'EnrolledUser__first_name', 'EnrolledUser__last_name')
     list_filter = ('Course', 'EnrollmentDate')
     ordering = ('-EnrollmentDate',)
 

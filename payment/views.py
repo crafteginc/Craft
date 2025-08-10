@@ -8,7 +8,7 @@ from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from orders.models import Order
 from .serializers import OrderInformationSerializer,CourseInformationSerializer
-from course.models import Course 
+from course.models import Course ,Enrollment
 from . import webhook
 
 payment_type = None
@@ -31,7 +31,7 @@ class PaymentViewSet(viewsets.ViewSet):
         # Stripe checkout session data
         session_data = {
             "mode": "payment",
-            "client_reference_id": order.id,
+            "client_reference_id": f"order:{order.id}",
             "success_url": success_url,
             "cancel_url": cancel_url,
             "line_items": [],
@@ -90,7 +90,7 @@ class CoursePaymentViewSet(viewsets.ViewSet):
         # Stripe checkout session data
         session_data = {
             "mode": "payment",
-            "client_reference_id": course.CourseID,
+            "client_reference_id": f"course:{course.CourseID}",
             "success_url": success_url,
             "cancel_url": cancel_url,
             "line_items": [{
@@ -104,7 +104,13 @@ class CoursePaymentViewSet(viewsets.ViewSet):
                 "quantity": 1,
             }],
         }
-  
+        buyer = request.user
+        if buyer == course.Supplier.user:
+            return Response({"error": "You cannot purchase your own course."}, status=400)
+
+        if Enrollment.objects.filter(Course=course, EnrolledUser=buyer).exists():
+            return Response({"error": "You are already enrolled in this course."}, status=400)
+        
         session = stripe.checkout.Session.create(**session_data)
         return Response({"status": "success", "url": session.url})
 

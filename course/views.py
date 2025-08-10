@@ -1,16 +1,13 @@
-from django.shortcuts import render
 from rest_framework.response import Response
-from rest_framework import generics,status,permissions,serializers,viewsets
-from rest_framework.generics import RetrieveAPIView
+from rest_framework import generics,status,permissions,serializers,viewsets,filters
 from .serializers import CourseSerializer,CourseVideosSerializer,SimpleCoursesSerializer
 from .models import Course, CourseVideos,Enrollment,Customer
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import api_view, permission_classes
-from .permissions import IsSupplier,IsCustomer,IsSupplierOrCustomer
-from rest_framework.exceptions import PermissionDenied,ValidationError
+from .permissions import IsSupplier,IsCustomer
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.decorators import action
 from django.http import Http404
 
 class CourseAPIView(viewsets.ModelViewSet):
@@ -83,15 +80,32 @@ class LectureRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView)
         self.check_permission(instance)
         instance.delete()
 
-class SimpleCoursesListAPIView(generics.ListAPIView):
-    queryset = Course.objects.all()
-    serializer_class = SimpleCoursesSerializer
-    permission_classes = [permissions.IsAuthenticated]
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
+class SimpleCoursesListAPIView(generics.ListAPIView):
+    serializer_class = SimpleCoursesSerializer
+    filter_backends = [filters.SearchFilter]
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    search_fields = ['CourseTitle', 'Description', 'Supplier__user__first_name', 'Supplier__user__last_name']
+    
+    def get_queryset(self):
+        queryset = Course.objects.all()
+        user = self.request.user
+
+        # If supplier, exclude own courses
+        if hasattr(user, 'supplier'):
+            queryset = queryset.exclude(Supplier=user.supplier)
+
+        return queryset
+    
 class OneCourseDetailView(ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
-    permission_classes = [IsAuthenticated,IsCustomer]
+    permission_classes = [IsAuthenticated,IsCustomer,IsSupplier]
    
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -100,7 +114,7 @@ class OneCourseDetailView(ModelViewSet):
     
     def get_permissions(self):
         if self.action == 'retrieve':
-            return [IsAuthenticated(), IsCustomer()]
+            return [IsAuthenticated(), IsCustomer(), IsSupplier()]
         elif self.action in ['create','update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsSupplier()]  
         return [IsAuthenticated()]  
@@ -114,12 +128,7 @@ class CourseLecturesAPIView(APIView):
         except Course.DoesNotExist:
             raise PermissionDenied("Course not found.")
 
-        user = request.user
-        if hasattr(user, 'customer'):
-            customer = user.Customer
-            if not Enrollment.objects.filter(Course=course, Customer=customer).exists():
-                raise PermissionDenied("You are not allowed to access this course.")
-        else:
+        if not Enrollment.objects.filter(Course=course, EnrolledUser=request.user).exists():
             raise PermissionDenied("You are not allowed to access this course.")
 
         serializer = CourseSerializer(course)
@@ -129,21 +138,27 @@ class EnrolledCoursesAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        user = request.user
+        enrollments = Enrollment.objects.filter(EnrolledUser=request.user)
+        courses = [enrollment.Course for enrollment in enrollments]
+        serializer = CourseSerializer(courses, many=True)
+        return Response(serializer.data)
 
-        if user.is_customer:
-            try:
-                customer = user.customer
-                enrollments = Enrollment.objects.filter(Customer=customer)
-                courses = [enrollment.Course for enrollment in enrollments]
-                serializer = CourseSerializer(courses, many=True)
-                return Response(serializer.data)
-            except Customer.DoesNotExist:
-                return Response({"message": "Customer profile does not exist."}, status=404)
-        
-        elif user.is_supplier:
-            
-            return Response({"message": " Supplier Can't ُ Enroll Courses "}, status=501)
-        
-        else:
-            return Response({"message": " User does not have appropriate profile."}, status=403)
+class EnrollInCourseAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            course = Course.objects.get(pk=pk)
+        except Course.DoesNotExist:
+            return Response({"message": "Course not found."}, status=404)
+
+        # Prevent enrolling in own course
+        if hasattr(request.user, 'supplier') and course.Supplier == request.user.supplier:
+            return Response({"message": "You cannot enroll in your own course."}, status=400)
+
+        # Prevent duplicate enrollment
+        if Enrollment.objects.filter(Course=course, EnrolledUser=request.user).exists():
+            return Response({"message": "Already enrolled in this course."}, status=400)
+
+        Enrollment.objects.create(Course=course, EnrolledUser=request.user)
+        return Response({"message": "Enrolled successfully."}, status=201)

@@ -21,7 +21,7 @@ from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist
 from returnrequest.models import transactions
 from .permissions import DeliveryContractProvided
-from .craft import get_craft_user_by_email
+from .Help import get_craft_user_by_email , get_warehouse_by_name
 
 class WishlistViewSet(viewsets.ModelViewSet):
     queryset = Wishlist.objects.all()
@@ -112,13 +112,7 @@ if Craft:
     print("User found:", Craft)
 else:
     print("User not found.")
-
-def get_warehouse_by_name(state_name):
-    try:
-        return Warehouse.objects.get(name=state_name)
-    except Warehouse.DoesNotExist:
-        raise ValidationError(f"Warehouse not found for state: {state_name}")
-    
+ 
 class OrderViewSet(mixins.CreateModelMixin,mixins.RetrieveModelMixin,mixins.ListModelMixin,viewsets.GenericViewSet):
     serializer_class = OrderCreateSerializer
     queryset = Order.objects.all()

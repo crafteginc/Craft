@@ -1,5 +1,5 @@
 from django.db import models
-from accounts.models import Supplier, Customer
+from accounts.models import Supplier,User,Customer
 from products.models import Category
 from django.core.validators import MaxValueValidator, MinValueValidator
 
@@ -42,7 +42,7 @@ class CourseVideos(models.Model):
 class Enrollment(models.Model):
     EnrollmentID = models.AutoField(primary_key=True)
     Course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrollments')
-    Customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='enrollments')
+    EnrolledUser = models.ForeignKey(User, on_delete=models.CASCADE,default=1)
     EnrollmentDate = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
