@@ -16,6 +16,7 @@ class Course(models.Model):
     CourseHours = models.IntegerField(blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     NumberOfLec = models.IntegerField(default=0,blank=True, null=True)
+    NumberOfUploadedLec = models.IntegerField(default=0,blank=True, null=True)
     Price = models.DecimalField(max_digits=10, decimal_places=2)
     Description = models.TextField()
     Supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, blank=True,null=True,related_name='sub')

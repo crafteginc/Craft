@@ -2,17 +2,19 @@ import stripe
 from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from course.models import Course, Enrollment
-from orders.models import Order, User
+from course.models import Course, Customer, Enrollment
+from orders.models import Order,User
 from returnrequest.models import transactions
 from orders.Help import get_craft_user_by_email
 from decimal import Decimal
 from django.shortcuts import get_object_or_404
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
-
-# Fetch Craft user fresh inside the function to ensure the latest data.
-
+Craft = get_craft_user_by_email("CraftEG@craft.com")
+if Craft:
+    print("User found:", Craft)
+else:
+    print("User not found.")
 @csrf_exempt
 def stripe_webhook(request):
     # Verify Stripe signature and parse event
@@ -35,7 +37,7 @@ def stripe_webhook(request):
         # Only proceed for mode=payment and payment_status=paid
         if session.get("mode") == "payment" and session.get("payment_status") == "paid":
             client_reference_id = session.get("client_reference_id", "")
-            customer_email = session.get("customer_details", {}).get("email") # Use get() with a default to avoid errors
+            customer_email = session.get("customer_email")  # email of buyer from Stripe session
 
             if not customer_email:
                 # No customer email — cannot map to a user
@@ -48,17 +50,20 @@ def stripe_webhook(request):
                 return HttpResponse(status=500)
 
             # ---------- ORDER PAYMENT ----------
+            # Expect client_reference_id like "order:123"
             if isinstance(client_reference_id, str) and client_reference_id.startswith("order:"):
                 order_id = client_reference_id.split(":", 1)[1]
 
                 order = get_object_or_404(Order, id=order_id)
                 buyer = get_object_or_404(User, email=customer_email)
 
+                # Protect: ensure id/email match? (optional)
                 try:
                     supplier_user = order.supplier.user
                 except Exception:
                     return HttpResponse(status=400)
 
+                # fee and amounts using Decimal
                 fee = (Decimal("0.15") * order.total_amount).quantize(Decimal("0.01"))
                 supplier_amount = (order.total_amount - fee).quantize(Decimal("0.01"))
 
@@ -69,7 +74,7 @@ def stripe_webhook(request):
                 # Create transactions
                 transactions.objects.create(
                     user=supplier_user,
-                    transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, # Corrected
+                    transaction_type=transactions.TransactionType.RETURNED_PRODUCT,
                     amount=supplier_amount
                 )
                 transactions.objects.create(
@@ -88,6 +93,7 @@ def stripe_webhook(request):
                 return HttpResponse(status=200)
 
             # ---------- COURSE PAYMENT ----------
+            # Expect client_reference_id like "course:123"
             elif isinstance(client_reference_id, str) and client_reference_id.startswith("course:"):
                 course_id = client_reference_id.split(":", 1)[1]
 
@@ -95,18 +101,23 @@ def stripe_webhook(request):
                 buyer = get_object_or_404(User, email=customer_email)
                 supplier_user = course.Supplier.user
 
+                # Prevent self-purchase
                 if buyer == supplier_user:
                     return HttpResponse(status=400)
 
+                # Prevent duplicate enrollment
                 if Enrollment.objects.filter(Course=course, EnrolledUser=buyer).exists():
-                    return HttpResponse(status=200)
+                    return HttpResponse(status=200)  # already enrolled — consider 200
 
+                # fee and amounts using Decimal
                 fee = (Decimal("0.15") * course.Price).quantize(Decimal("0.01"))
                 supplier_amount = (course.Price - fee).quantize(Decimal("0.01"))
 
+                # Update balances
                 supplier_user.Balance = (supplier_user.Balance or Decimal("0.00")) + supplier_amount
                 Craft.Balance = (Craft.Balance or Decimal("0.00")) + fee
 
+                # Create transactions
                 transactions.objects.create(
                     user=supplier_user,
                     transaction_type=transactions.TransactionType.PURCHASED_COURSE,
@@ -118,8 +129,10 @@ def stripe_webhook(request):
                     amount=fee
                 )
 
+                # Create enrollment
                 Enrollment.objects.create(Course=course, EnrolledUser=buyer)
 
+                # Save balances
                 supplier_user.save()
                 Craft.save()
 

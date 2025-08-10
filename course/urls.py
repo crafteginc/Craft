@@ -1,31 +1,28 @@
 from django.urls import path, include
-from rest_framework import routers
+from rest_framework.routers import DefaultRouter
 from .views import (
-    CourseAPIView,
-    LectureListCreateAPIView,
-    LectureRetrieveUpdateDestroyAPIView,
-    CourseLecturesAPIView,
+    CourseViewSet,
+    LectureViewSet,
     SimpleCoursesListAPIView,
-    OneCourseDetailView,
+    OneCourseDetailAPIView,
+    CourseLecturesAPIView,
     EnrolledCoursesAPIView,
-    EnrollInCourseAPIView
 )
 
-# Router setup
-router = routers.DefaultRouter()
-router.register(r'courses', CourseAPIView, basename='course-create')
-router.register(r'course-detail', OneCourseDetailView, basename='course-detail')
+router = DefaultRouter()
+router.register(r"courses", CourseViewSet, basename="courses")
+router.register(r"lectures", LectureViewSet, basename="lectures")
 
 urlpatterns = [
-    # Router URLs
-    path('', include(router.urls)),
+    path("", include(router.urls)),
 
-    # Courses
-    path('courses-list/', SimpleCoursesListAPIView.as_view(), name='all-courses-list'),
-    path('user/courses/', EnrolledCoursesAPIView.as_view(), name='user-courses-list'),
-    path('courses/<int:pk>/enroll/', EnrollInCourseAPIView.as_view(), name='enroll-course'),
-    # Lectures
-    path('lecture/', LectureListCreateAPIView.as_view(), name='lecture-create'),
-    path('lecture/<int:pk>/', LectureRetrieveUpdateDestroyAPIView.as_view(), name='lecture-retrieve-update-destroy'),
-    path('course-lectures/<int:CourseID>/', CourseLecturesAPIView.as_view(), name='course-lectures'),
+    # Public / user-specific course lists
+    path("simple-courses/", SimpleCoursesListAPIView.as_view(), name="simple-courses"),
+    path("enrolled-courses/", EnrolledCoursesAPIView.as_view(), name="enrolled-courses"),
+
+    # Single course detail with permission check
+    path("courses/<int:pk>/detail/", OneCourseDetailAPIView.as_view(), name="course-detail"),
+
+    # Lectures for enrolled students
+    path("courses/<int:pk>/lectures/", CourseLecturesAPIView.as_view(), name="course-lectures"),
 ]
