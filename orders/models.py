@@ -62,7 +62,6 @@ class Order(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE,null=True)
     delivery = models.ForeignKey(Delivery,on_delete=models.CASCADE,null=True)
     supplier = models.ForeignKey(Supplier,on_delete=models.CASCADE,related_name="Supplier_orders",null=True)
     from_state = models.CharField(max_length=250, blank=True)
@@ -81,7 +80,6 @@ class Order(models.Model):
     final_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     payment_method = models.CharField(max_length=50, choices=PaymentMethod.choices, default=PaymentMethod.CASH_ON_DELIVERY)
     paid = models.BooleanField(default=False)
-    stripe_id = models.CharField(max_length=250,null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

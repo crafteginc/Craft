@@ -34,8 +34,8 @@ class OrderAdmin(admin.ModelAdmin):
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ('order', 'product', 'quantity', 'price', 'created_at')
-    search_fields = ('order__user__email', 'order__user__first_name', 'order__user__last_name', 'product__ProductName')
+    list_display = ('order', 'quantity', 'price', 'created_at')
+    search_fields = ('order__user__email', 'order__user__first_name', 'order__user__last_name')
     list_filter = ('created_at',)
     ordering = ('-created_at',)
 

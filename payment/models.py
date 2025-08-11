@@ -8,32 +8,40 @@ class PaymentHistory(models.Model):
     Model to log payment attempts and their status.
     """
     user = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        blank=True, 
+        User,
+        on_delete=models.SET_NULL,
+        blank=True,
         null=True,
         help_text="The user who initiated the payment."
     )
     order = models.ForeignKey(
-        Order, 
-        on_delete=models.SET_NULL, 
-        blank=True, 
+        Order,
+        on_delete=models.SET_NULL,
+        blank=True,
         null=True,
         help_text="The associated order for the payment, if any."
     )
     course = models.ForeignKey(
-        Course, 
-        on_delete=models.SET_NULL, 
-        blank=True, 
+        Course,
+        on_delete=models.SET_NULL,
+        blank=True,
         null=True,
         help_text="The associated course for the payment, if any."
     )
     stripe_session_id = models.CharField(
-        max_length=255, 
+        max_length=255,
         unique=True,
-        null=True, 
+        null=True,
         blank=True,
         help_text="The ID of the Stripe checkout session."
+    )
+    # NEW FIELD: To store the Stripe Payment Intent ID
+    stripe_payment_intent_id = models.CharField(
+        max_length=255,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="The ID of the Stripe Payment Intent associated with the transaction."
     )
     date = models.DateTimeField(
         auto_now_add=True,
@@ -55,3 +63,4 @@ class PaymentHistory(models.Model):
         elif self.course:
             return f"Payment for Course {self.course.CourseID} - {self.payment_status}"
         return f"Payment by {self.user.email} - {self.payment_status}"
+
