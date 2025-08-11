@@ -186,7 +186,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
     class Meta:
         model = Order
-        exclude = ("cart", "paid", "status", "stripe_id")
+        exclude = ("cart", "paid", "status")
         
 class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
     cost = serializers.SerializerMethodField()
