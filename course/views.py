@@ -3,7 +3,8 @@ from django.db.models import Q, F
 
 from rest_framework import generics, permissions, serializers, viewsets, filters, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, NotFound
+from rest_framework.exceptions import PermissionDenied, NotFound,MethodNotAllowed
+
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -39,6 +40,9 @@ class CourseViewSet(viewsets.ModelViewSet, CoursePermissionMixin):
     filter_backends = [filters.SearchFilter]
     search_fields = ["CourseTitle", "Description"]
 
+    def list(self, request, *args, **kwargs):
+        raise MethodNotAllowed("GET", detail="Listing all courses is not allowed.")
+    
     def perform_create(self, serializer):
         supplier = self.request.user.supplier
         course_title = (serializer.validated_data.get("CourseTitle") or "").strip()
@@ -183,4 +187,4 @@ class EnrolledCoursesAPIView(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
-        return Course.objects.filter(enrollment__EnrolledUser=self.request.user).select_related("Supplier")
+        return Course.objects.filter(enrollments__EnrolledUser=self.request.user).select_related("Supplier")

@@ -2,145 +2,119 @@ import stripe
 from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from course.models import Course, Customer, Enrollment
-from orders.models import Order,User
-from returnrequest.models import transactions
-from orders.Help import get_craft_user_by_email
-from decimal import Decimal
-from django.shortcuts import get_object_or_404
+from orders.models import Order
+from course.models import Course, Enrollment
+from django.contrib.auth import get_user_model
+from .models import PaymentHistory  # Import the PaymentHistory model
+import logging
 
+# Get an instance of a logger
+logger = logging.getLogger(__name__)
+
+User = get_user_model()
+
+# Stripe API key
 stripe.api_key = settings.STRIPE_SECRET_KEY
-Craft = get_craft_user_by_email("CraftEG@craft.com")
-if Craft:
-    print("User found:", Craft)
-else:
-    print("User not found.")
+# Webhook secret from settings
+endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
+
 @csrf_exempt
 def stripe_webhook(request):
-    # Verify Stripe signature and parse event
+    """
+    Stripe webhook handler to process payment events.
+    """
+    logger.info("Stripe webhook received.")
     payload = request.body
-    sig_header = request.headers.get("Stripe-Signature")
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+
+    if not sig_header:
+        logger.warning("Webhook received without Stripe-Signature header.")
+        return HttpResponse(status=400)
 
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
-    except ValueError:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, endpoint_secret
+        )
+        logger.info(f"Webhook event constructed successfully. Type: {event['type']}")
+    except ValueError as e:
         # Invalid payload
+        logger.error(f"Invalid payload for webhook: {e}")
         return HttpResponse(status=400)
-    except stripe.error.SignatureVerificationError:
+    except stripe.error.SignatureVerificationError as e:
         # Invalid signature
+        logger.error(f"Invalid signature for webhook: {e}")
         return HttpResponse(status=400)
+    except Exception as e:
+        # Catch any other unexpected errors during event construction
+        logger.error(f"Unexpected error during webhook event construction: {e}")
+        return HttpResponse(status=500)
 
-    # Only handle checkout.session.completed
-    if event.get("type") == "checkout.session.completed":
-        session = event["data"]["object"]
 
-        # Only proceed for mode=payment and payment_status=paid
-        if session.get("mode") == "payment" and session.get("payment_status") == "paid":
-            client_reference_id = session.get("client_reference_id", "")
-            customer_email = session.get("customer_email")  # email of buyer from Stripe session
+    # Handle the event
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        client_reference_id = session.get('client_reference_id')
+        session_id = session.get('id')
+        logger.info(f"Checkout session completed event. Session ID: {session_id}, Client Reference ID: {client_reference_id}")
 
-            if not customer_email:
-                # No customer email — cannot map to a user
-                return HttpResponse(status=400)
+        # Retrieve the PaymentHistory record using the Stripe session ID
+        payment_history = PaymentHistory.objects.filter(stripe_session_id=session_id).first()
+        if not payment_history:
+            logger.error(f"Payment history record not found for session ID: {session_id}")
+            # It's important to return 200 here so Stripe doesn't keep retrying
+            return HttpResponse("Payment history record not found.", status=200)
+        
+        # Check if the payment status is not already succeeded to prevent double processing
+        if payment_history.payment_status == 'succeeded':
+            logger.info(f"Payment for session ID {session_id} already processed. Returning 200.")
+            return HttpResponse("Payment already processed.", status=200)
 
-            # Fetch Craft (platform) user fresh
-            Craft = get_craft_user_by_email("CraftEG@craft.com")
-            if not Craft:
-                # Platform account missing
-                return HttpResponse(status=500)
+        # Update the PaymentHistory record
+        payment_history.payment_status = 'succeeded'
+        payment_history.save()
+        logger.info(f"Payment history for session ID {session_id} updated to 'succeeded'.")
 
-            # ---------- ORDER PAYMENT ----------
-            # Expect client_reference_id like "order:123"
-            if isinstance(client_reference_id, str) and client_reference_id.startswith("order:"):
-                order_id = client_reference_id.split(":", 1)[1]
 
-                order = get_object_or_404(Order, id=order_id)
-                buyer = get_object_or_404(User, email=customer_email)
-
-                # Protect: ensure id/email match? (optional)
-                try:
-                    supplier_user = order.supplier.user
-                except Exception:
-                    return HttpResponse(status=400)
-
-                # fee and amounts using Decimal
-                fee = (Decimal("0.15") * order.total_amount).quantize(Decimal("0.01"))
-                supplier_amount = (order.total_amount - fee).quantize(Decimal("0.01"))
-
-                # Update balances
-                supplier_user.Balance = (supplier_user.Balance or Decimal("0.00")) + supplier_amount
-                Craft.Balance = (Craft.Balance or Decimal("0.00")) + fee
-
-                # Create transactions
-                transactions.objects.create(
-                    user=supplier_user,
-                    transaction_type=transactions.TransactionType.RETURNED_PRODUCT,
-                    amount=supplier_amount
-                )
-                transactions.objects.create(
-                    user=Craft,
-                    transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS,
-                    amount=fee
-                )
-
-                # Mark order as paid
-                order.status = Order.OrderStatus.PAID
-                order.stripe_id = session.get("payment_intent") or session.get("id")
+        if client_reference_id and client_reference_id.startswith('order:'):
+            order_id = client_reference_id.split(':')[1]
+            logger.info(f"Processing order payment for Order ID: {order_id}")
+            try:
+                order = Order.objects.get(id=order_id)
+                order.status = 'paid'
                 order.save()
-                supplier_user.save()
-                Craft.save()
+                logger.info(f"Order {order_id} status updated to 'paid'.")
+            except Order.DoesNotExist:
+                logger.error(f"Order {order_id} not found during webhook processing.")
+                return HttpResponse(f"Order {order_id} not found.", status=200) # Return 200 to prevent retries
+            except Exception as e:
+                logger.error(f"Error updating order {order_id} status: {e}")
+                return HttpResponse(f"Error processing order {order_id}.", status=500)
 
-                return HttpResponse(status=200)
+        elif client_reference_id and client_reference_id.startswith('course:'):
+            course_id = client_reference_id.split(':')[1]
+            logger.info(f"Processing course payment for Course ID: {course_id}")
+            try:
+                course = Course.objects.get(CourseID=course_id)
+                buyer = payment_history.user  # Use the user from the PaymentHistory record
+                
+                if buyer:
+                    enrollment, created = Enrollment.objects.get_or_create(Course=course, EnrolledUser=buyer)
+                    if created:
+                        logger.info(f"User {buyer.email} successfully enrolled in course {course.CourseID}.")
+                    else:
+                        logger.info(f"User {buyer.email} was already enrolled in course {course.CourseID}.")
+                else:
+                    logger.warning(f"Buyer not found in payment history for session ID: {session_id}. Cannot enroll course.")
+                    return HttpResponse("Buyer not found.", status=200) # Return 200 to prevent retries
 
-            # ---------- COURSE PAYMENT ----------
-            # Expect client_reference_id like "course:123"
-            elif isinstance(client_reference_id, str) and client_reference_id.startswith("course:"):
-                course_id = client_reference_id.split(":", 1)[1]
+            except Course.DoesNotExist:
+                logger.error(f"Course {course_id} not found during webhook processing.")
+                return HttpResponse(f"Course {course_id} not found.", status=200) # Return 200 to prevent retries
+            except Exception as e:
+                logger.error(f"Error enrolling course {course_id} for buyer {buyer.email}: {e}")
+                return HttpResponse(f"Error processing course {course_id}.", status=500)
+    else:
+        logger.info(f"Received webhook event type: {event['type']} (not handled by this function).")
 
-                course = get_object_or_404(Course, CourseID=course_id)
-                buyer = get_object_or_404(User, email=customer_email)
-                supplier_user = course.Supplier.user
-
-                # Prevent self-purchase
-                if buyer == supplier_user:
-                    return HttpResponse(status=400)
-
-                # Prevent duplicate enrollment
-                if Enrollment.objects.filter(Course=course, EnrolledUser=buyer).exists():
-                    return HttpResponse(status=200)  # already enrolled — consider 200
-
-                # fee and amounts using Decimal
-                fee = (Decimal("0.15") * course.Price).quantize(Decimal("0.01"))
-                supplier_amount = (course.Price - fee).quantize(Decimal("0.01"))
-
-                # Update balances
-                supplier_user.Balance = (supplier_user.Balance or Decimal("0.00")) + supplier_amount
-                Craft.Balance = (Craft.Balance or Decimal("0.00")) + fee
-
-                # Create transactions
-                transactions.objects.create(
-                    user=supplier_user,
-                    transaction_type=transactions.TransactionType.PURCHASED_COURSE,
-                    amount=supplier_amount
-                )
-                transactions.objects.create(
-                    user=Craft,
-                    transaction_type=transactions.TransactionType.PURCHASED_COURSE,
-                    amount=fee
-                )
-
-                # Create enrollment
-                Enrollment.objects.create(Course=course, EnrolledUser=buyer)
-
-                # Save balances
-                supplier_user.save()
-                Craft.save()
-
-                return HttpResponse(status=200)
-
-            # Unknown client_reference_id format
-            else:
-                return HttpResponse(status=400)
-
-    # For other events or after processing
     return HttpResponse(status=200)
+
