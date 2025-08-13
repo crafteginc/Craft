@@ -167,6 +167,9 @@ class OneCourseDetailAPIView(generics.RetrieveAPIView):
 
 class CourseLecturesAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["LectureTitle", "Description"]
+    pagination_class = StandardResultsSetPagination
 
     def get(self, request, pk):
         try:

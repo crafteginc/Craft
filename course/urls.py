@@ -23,6 +23,6 @@ urlpatterns = [
     # Single course detail with permission check
     path("courses/<int:pk>/detail/", OneCourseDetailAPIView.as_view(), name="course-detail"),
 
-    # Lectures for enrolled students
+    # Lectures for enrolled students and Course Supplier
     path("courses/<int:pk>/lectures/", CourseLecturesAPIView.as_view(), name="course-lectures"),
 ]
