@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Course, CourseVideos, Enrollment
+from .models import Course, CourseVideos, Enrollment,Supplier
 from .serializers import (
     CourseSerializer,
     CourseVideosSerializer,
@@ -87,7 +87,7 @@ class CourseViewSet(viewsets.ModelViewSet, CoursePermissionMixin):
     
 class LectureViewSet(viewsets.ModelViewSet, CoursePermissionMixin):
     serializer_class = CourseVideosSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsSupplier]
     queryset = CourseVideos.objects.select_related("CourseID", "CourseID__Supplier")
     filter_backends = [filters.SearchFilter]
     search_fields = ["Title", "Description"]
@@ -115,7 +115,6 @@ class LectureViewSet(viewsets.ModelViewSet, CoursePermissionMixin):
             raise PermissionDenied("You are not allowed to create videos for this course.")
 
         serializer.save()
-
         Course.objects.filter(pk=course.pk).update(NumberOfUploadedLec=F("NumberOfUploadedLec") + 1)
 
     @transaction.atomic
@@ -171,16 +170,40 @@ class CourseLecturesAPIView(APIView):
 
     def get(self, request, pk):
         try:
+            # Attempt to retrieve the Course object by its primary key (pk)
             course = Course.objects.get(pk=pk)
         except Course.DoesNotExist:
+            # If the course does not exist, raise a 404 Not Found error
             raise NotFound("Course not found.")
 
-        if not Enrollment.objects.filter(Course=course, EnrolledUser=request.user).exists():
-            raise PermissionDenied("You are not allowed to access this course.")
+        # Check if the requesting user is the supplier of this course
+        is_supplier = False
+        try:
+            # Try to get the Supplier object linked to the current user
+            supplier = Supplier.objects.get(user=request.user)
+            # If the course's supplier is the same as the user's supplier, set is_supplier to True
+            if course.Supplier == supplier:
+                is_supplier = True
+        except Supplier.DoesNotExist:
+            # If the user is not associated with any supplier, is_supplier remains False
+            pass
 
-        serializer = CourseSerializer(course)
-        return Response(serializer.data)
+        # Check if the requesting user is enrolled in this course
+        is_enrolled = Enrollment.objects.filter(Course=course, EnrolledUser=request.user).exists()
 
+        # If the user is neither the supplier nor enrolled, deny access
+        if not is_supplier and not is_enrolled:
+            raise PermissionDenied("You are not allowed to access lectures for this course. You must be either the course supplier or an enrolled user.")
+
+        # If the user has permission (either supplier or enrolled), retrieve all lectures for the course
+        lectures = CourseVideos.objects.filter(CourseID=course)
+        
+        # Serialize the retrieved lectures
+        serializer = CourseVideosSerializer(lectures, many=True)
+        
+        # Return the serialized data
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
 class EnrolledCoursesAPIView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = CourseSerializer
