@@ -37,6 +37,11 @@ class CourseVideos(models.Model):
     Description = models.TextField()
     VideoFile = models.FileField(upload_to='videos/%y/%m/%d')
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['CourseID', 'VideoNo'], name='unique_lecture_per_course')
+        ]
+
     def __str__(self):
         return f"{self.LectureTitle}"
 

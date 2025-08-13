@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Q, F
+from django.db.models import Q, F, Max
 
 from rest_framework import generics, permissions, serializers, viewsets, filters, status
 from rest_framework.decorators import action
@@ -87,10 +87,11 @@ class CourseViewSet(viewsets.ModelViewSet, CoursePermissionMixin):
     
 class LectureViewSet(viewsets.ModelViewSet, CoursePermissionMixin):
     serializer_class = CourseVideosSerializer
-    permission_classes = [IsSupplier]
+    permission_classes = [IsAuthenticated]
+    lookup_field = "VideoID"
     queryset = CourseVideos.objects.select_related("CourseID", "CourseID__Supplier")
     filter_backends = [filters.SearchFilter]
-    search_fields = ["Title", "Description"]
+    search_fields = ["LectureTitle", "Description"]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
@@ -98,31 +99,26 @@ class LectureViewSet(viewsets.ModelViewSet, CoursePermissionMixin):
             course_id = self.request.query_params.get("CourseID")
             if not course_id:
                 raise NotFound("CourseID not provided.")
-
             try:
                 course = Course.objects.get(pk=course_id)
             except Course.DoesNotExist:
                 raise NotFound("Course not found.")
-
             return self.queryset.filter(CourseID=course)
-
         return self.queryset
 
-    @transaction.atomic
     def perform_create(self, serializer):
         course = serializer.validated_data.get("CourseID")
         if course.Supplier_id != self.request.user.supplier.id:
             raise PermissionDenied("You are not allowed to create videos for this course.")
-
-        serializer.save()
+        max_video_no = CourseVideos.objects.filter(CourseID=course).aggregate(Max('VideoNo'))['VideoNo__max']
+        new_video_no = (max_video_no or 0) + 1
+        serializer.save(VideoNo=new_video_no)
         Course.objects.filter(pk=course.pk).update(NumberOfUploadedLec=F("NumberOfUploadedLec") + 1)
-
-    @transaction.atomic
+        
     def perform_update(self, serializer):
         self._ensure_video_owner(serializer.instance)
         serializer.save()
 
-    @transaction.atomic
     def perform_destroy(self, instance):
         self._ensure_video_owner(instance)
         course_id = instance.CourseID_id

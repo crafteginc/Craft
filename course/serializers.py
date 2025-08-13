@@ -64,8 +64,10 @@ class CourseVideosSerializer(serializers.ModelSerializer):
             "VideoID",
             "VideoNo",
             "LectureTitle",
+            "Description",
             "VideoFile",
         ]
+        read_only_fields = ("VideoNo",)
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     videos = CourseVideosSerializer(
