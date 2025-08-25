@@ -100,7 +100,7 @@ class AddWishlistItemSerializer(serializers.ModelSerializer):
         fields = ["id", "Product_id"]
 
 class CartItemSerializer(serializers.ModelSerializer):
-    product = SimpleProductSerializer(many=False, allow_null=True)
+    product = SimpleProductSerializer(source="Product",many=True)
     sub_total = serializers.SerializerMethodField(method_name="total")
 
     class Meta:
