@@ -142,16 +142,23 @@ class ProductsByMaterials(ListAPIView):
     serializer_class = AccountProductSerializer
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    search_fields = ['ProductName','ProductDescription']
+    search_fields = ['ProductName', 'ProductDescription']
     ordering_fields = ['UnitPrice']
 
     def get_queryset(self):
         slug = self.kwargs.get("Slug")
+        user = self.request.user
+
         try:
             material = MatCategory.objects.get(Slug=slug)
-            return material.MatCatPro.filter(OutOfStock=False)
+            queryset = material.MatCatPro.filter(OutOfStock=False)
+            
+            if hasattr(user, 'supplier'):
+                queryset = queryset.exclude(Supplier=user.supplier)
+
+            return queryset
         except MatCategory.DoesNotExist:
-            return []  
+            return Product.objects.none()
 
 class CollectionViewSet(viewsets.ModelViewSet):
     queryset = Collection.objects.all()
