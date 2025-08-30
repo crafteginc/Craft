@@ -30,7 +30,7 @@ class Cart(models.Model):
     Created_at = models.DateTimeField(auto_now_add=True,blank=True, null=True)
  
     def __str__(self):
-        return f"Cart ID: {self.User.get_full_name()}"
+        return f"Cart ID:{self.id} for {self.User.get_full_name}"
 
 class CartItems(models.Model):
     CartID = models.ForeignKey(Cart, on_delete=models.CASCADE,related_name="items", null=True, blank=True)
@@ -40,7 +40,7 @@ class CartItems(models.Model):
     Size = models.CharField(max_length=20,blank=True, null=True) 
 
     def __str__(self):
-        return f"Cart Item: {self.Product.ProductName}"
+        return f"Cart ID {self.CartID} Cart Item: {self.Product.ProductName}"
     
 User = get_user_model()
 class Order(models.Model):
