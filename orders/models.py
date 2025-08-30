@@ -29,7 +29,7 @@ class Cart(models.Model):
     User = models.OneToOneField(User, on_delete=models.CASCADE)
     Created_at = models.DateTimeField(auto_now_add=True,blank=True, null=True)
  
-    def _str_(self):
+    def __str__(self):
         return f"Cart ID: {self.User.get_full_name()}"
 
 class CartItems(models.Model):
@@ -39,7 +39,7 @@ class CartItems(models.Model):
     Color = models.CharField(max_length=20,blank=True, null=True) 
     Size = models.CharField(max_length=20,blank=True, null=True) 
 
-    def _str_(self):
+    def __str__(self):
         return f"Cart Item: {self.Product.ProductName}"
     
 User = get_user_model()

@@ -107,6 +107,19 @@ class CartItemViewSet(viewsets.ModelViewSet):
             # If user already has a cart, just save the item with that cart
             serializer.save(user=user, CartID=cart)
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.CartID.User != request.user:
+            return Response(
+                {"message": "You cannot delete items from another user's cart."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        self.perform_destroy(instance)
+        return Response(
+            {"message": "Cart item deleted successfully."},
+            status=status.HTTP_200_OK,  
+        )
+
 Craft = get_craft_user_by_email("CraftEG@craft.com")
 if Craft:
     print("User found:", Craft)
