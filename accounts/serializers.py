@@ -247,7 +247,7 @@ class SupplierProfileSerializer(serializers.ModelSerializer):
         Calculate the number of orders created today for the supplier.
         """
         today_start = now().replace(hour=0, minute=0, second=0, microsecond=0)
-        return Order.objects.filter(supplier=obj, created_at__gte=today_start).count()
+        return Order.objects.filter(shipments__supplier=obj, created_at__gte=today_start).count()
 
     def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})

@@ -157,7 +157,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
     class Meta:
         model = Order
-        exclude = ("cart", "paid", "status")
+        exclude = ("paid", "status")
         
 class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
     cost = serializers.SerializerMethodField()
@@ -173,10 +173,11 @@ class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
 class ShipmentSerializer(serializers.ModelSerializer):
     items = OrderItemListRetrieveSerializer(many=True, read_only=True)
     confirmation_code = serializers.SerializerMethodField()
+    status = serializers.CharField(source='get_status_display')
 
     class Meta:
         model = Shipment
-        fields = ["id", "order", "supplier", "from_state", "to_state", "from_address", "to_address", "confirmation_code", "status", "delivery_confirmed_at", "delivery_person", "items"]
+        fields = ["confirmation_code", "status", "items"]
 
     def get_confirmation_code(self, obj: Shipment):
         request = self.context.get('request')
@@ -192,13 +193,19 @@ class ShipmentSerializer(serializers.ModelSerializer):
         return data
 
 class OrderListRetrieveSerializer(serializers.ModelSerializer):
-    shipments = ShipmentSerializer(many=True, read_only=True)
-    user = UserSerializer(read_only=True)
-    address = AddressSerializer(many=False,read_only=True)
+    shipment = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
-        fields = ("id","user","address","shipments","total_amount","discount_amount","delivery_fee", "final_amount", "payment_method" ,"paid", "created_at", "updated_at")
+        fields = ("id", "final_amount", "paid", "created_at", "shipment")
+
+    def get_shipment(self, obj: Order):
+
+        latest_shipment = obj.shipments.order_by('-id').first()
+
+        if latest_shipment:
+            return ShipmentSerializer(latest_shipment, context=self.context).data
+        return None
 
 class ReturnRequestListRetrieveSerializer(serializers.ModelSerializer):
     items = OrderItemListRetrieveSerializer(many=True, read_only=True)
