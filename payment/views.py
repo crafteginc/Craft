@@ -46,7 +46,7 @@ class PaymentViewSet(viewsets.ViewSet):
             "cancel_url": cancel_url,
             "line_items": [],
         }
-
+        delivery_fee = order.delivery_fee if order.delivery_fee else Decimal("0.00")
         total_amount=order.final_amount-delivery_fee
         session_data["line_items"].append(
             {
@@ -61,7 +61,6 @@ class PaymentViewSet(viewsets.ViewSet):
             }
         )
 
-        delivery_fee = order.delivery_fee if order.delivery_fee else Decimal("0.00")
         if delivery_fee > 0:
             session_data["line_items"].append(
                 {
