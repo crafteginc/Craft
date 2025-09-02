@@ -1,4 +1,4 @@
-from .models import Order,OrderItem,Cart,CartItems,Wishlist,WishlistItem,Warehouse
+from .models import Order,OrderItem,Cart,CartItems,Wishlist,WishlistItem,Warehouse,Shipment
 from accounts.serializers import AddressSerializer
 from products .models import Product
 from .models import Coupon
@@ -44,9 +44,9 @@ class WishlistSerializer(serializers.ModelSerializer):
         fields = ["id", "items"]
 
 class AddWishlistItemSerializer(serializers.ModelSerializer):
-    Product_id = serializers.IntegerField()
+    product_id = serializers.IntegerField(write_only=True)
 
-    def validate_Product_id(self, value):
+    def validate_product_id(self, value):
         product = Product.objects.filter(id=value).first()
         if not product:
             raise serializers.ValidationError("There is no product associated with the given ID")
@@ -54,50 +54,21 @@ class AddWishlistItemSerializer(serializers.ModelSerializer):
 
     def save(self, **kwargs):
         user = self.context['request'].user
-        Product_id = self.validated_data["Product_id"]
+        product_id = self.validated_data["product_id"]
         wishlist, _ = Wishlist.objects.get_or_create(user=user)
 
-        # Check if the product is owned by the user
-        product = Product.objects.get(id=Product_id)
+        product = Product.objects.get(id=product_id)
         if product.supplier.user == user:
             raise serializers.ValidationError("You cannot add your own product to the wishlist")
 
-        wishlist_item, _ = WishlistItem.objects.get_or_create(wishlist=wishlist, Product_id=Product_id)
+        wishlist_item, _ = WishlistItem.objects.get_or_create(wishlist=wishlist, product=product)
         self.instance = wishlist_item
 
         return self.instance
 
     class Meta:
         model = WishlistItem
-        fields = ["id", "Product_id"]
-        
-class AddWishlistItemSerializer(serializers.ModelSerializer):
-    Product_id = serializers.IntegerField()
-
-    def validate_Product_id(self, value):
-        product = Product.objects.filter(id=value).first()
-        if not product:
-            raise serializers.ValidationError("There is no product associated with the given ID")
-        return value
-
-    def save(self, **kwargs):
-        user = self.context['request'].user
-        Product_id = self.validated_data["Product_id"]
-        wishlist, _ = Wishlist.objects.get_or_create(user=user)
-
-        # Check if the product is owned by the user
-        product = Product.objects.get(id=Product_id)
-        if product.supplier.user == user:
-            raise serializers.ValidationError("You cannot add your own product to the wishlist")
-
-        wishlist_item, _ = WishlistItem.objects.get_or_create(wishlist=wishlist, product=product)  # Corrected field name
-        self.instance = wishlist_item
-
-        return self.instance
-
-    class Meta:
-        model = WishlistItem
-        fields = ["id", "Product_id"]
+        fields = ["id", "product_id"]
 
 class CartItemSerializer(serializers.ModelSerializer):
     product = SimpleProductSerializer(source="Product", many=False, read_only=True)
@@ -123,15 +94,15 @@ class CartSerializer(serializers.ModelSerializer):
         
     def main_total(self, cart):
         items = cart.items.all()
-        total = sum([item.Quantity * item.product.UnitPrice for item in items if item.product])
+        total = sum([item.Quantity * item.Product.UnitPrice for item in items if item.Product])
         return total
        
 class AddCartItemSerializer(serializers.ModelSerializer):
-    Product_id = serializers.IntegerField()
+    Product_id = serializers.IntegerField(write_only=True)
     Color = serializers.CharField(required=False, allow_blank=True)
     Size = serializers.CharField(required=False, allow_blank=True)
 
-    def validate_Product_id(self, value):
+    def validate_product_id(self, value):
         product = Product.objects.filter(id=value).first()
         if not product:
             raise serializers.ValidationError({"detail":"There is no product associated with the given ID"})
@@ -145,19 +116,20 @@ class AddCartItemSerializer(serializers.ModelSerializer):
         size = self.validated_data.get("Size", "")
         
         cart, _ = Cart.objects.get_or_create(User=user)
-
         product = Product.objects.get(id=Product_id)
+
         if product.Supplier.user == user:
             raise serializers.ValidationError({"detail":"You cannot add your own product to the cart"})
         
-        if quantity == 0 or quantity > 10 :
-            raise serializers.ValidationError({"detail":"Quantity Must be above 0 and less than 10"})
+        if quantity <= 0 or quantity > 10:
+            raise serializers.ValidationError({"detail":"Quantity Must be above 0 and less than or equal to 10"})
         if quantity > product.Stock :
             raise serializers.ValidationError({"detail": f"Quantity of {product.ProductName} exceeds available stock."})
+        
         try:
             cart_item = CartItems.objects.get(Product_id=Product_id, CartID=cart, Color=color, Size=size)
-            if cart_item.Quantity > product.Stock :
-                raise serializers.ValidationError({"detail": f"Quantity of {product.ProductName} exceeds available stock."})
+            if cart_item.Quantity + quantity > product.Stock:
+                raise serializers.ValidationError({"detail": f"Adding this quantity of {product.ProductName} exceeds available stock."})
             cart_item.Quantity += quantity
             cart_item.save()
             self.instance = cart_item
@@ -177,7 +149,6 @@ class AddCartItemSerializer(serializers.ModelSerializer):
         fields = ["id", "Product_id", "Quantity", "Color", "Size"]
 
 class UpdateCartItemSerializer(serializers.ModelSerializer):
-    # id = serializers.IntegerField(read_only=True)
     class Meta:
         model = CartItems
         fields = ["Quantity"]
@@ -190,44 +161,44 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         
 class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
     cost = serializers.SerializerMethodField()
-    order = serializers.StringRelatedField()
     product = SimpleProductSerializer()
 
     class Meta:
         model = OrderItem
-        fields = ("id", "order", "product", "quantity", "price", "cost")
+        fields = ("id", "product", "quantity", "price", "cost")
 
     def get_cost(self, obj: OrderItem):
         return obj.get_cost()
-
-class OrderListRetrieveSerializer(serializers.ModelSerializer):
+        
+class ShipmentSerializer(serializers.ModelSerializer):
     items = OrderItemListRetrieveSerializer(many=True, read_only=True)
-    total_cost = serializers.SerializerMethodField()
-    user = UserSerializer(read_only=True)
-    address = AddressSerializer(many=False,read_only=True)
-    from_address =AddressSerializer(many=False,read_only=True)
     confirmation_code = serializers.SerializerMethodField()
-    payment_method = serializers.ChoiceField(choices=Order.PaymentMethod.choices)
-    
-    class Meta:
-        model = Order
-        fields = ("id","user","address","from_address","items", "total_cost","payment_method" ,"paid","status", "created_at", "updated_at",'confirmation_code')
 
-    def get_total_cost(self, obj: Order):
-        return obj.get_total_cost()
-    
-    def get_confirmation_code(self, obj: Order):
-        # Check if the requester is the creator of the order
+    class Meta:
+        model = Shipment
+        fields = ["id", "order", "supplier", "from_state", "to_state", "from_address", "to_address", "confirmation_code", "status", "delivery_confirmed_at", "delivery_person", "items"]
+
+    def get_confirmation_code(self, obj: Shipment):
         request = self.context.get('request')
-        if request and request.user == obj.user:
+        # Only show confirmation code to the user who placed the order
+        if request and request.user == obj.order.user:
             return obj.confirmation_code
-        return None  # If requester is not the creator, return None or exclude the field
+        return None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        if data['confirmation_code'] is None:
-            data.pop('confirmation_code')  # Remove confirmation_code if it's None
+        if data.get('confirmation_code') is None:
+            data.pop('confirmation_code')
         return data
+
+class OrderListRetrieveSerializer(serializers.ModelSerializer):
+    shipments = ShipmentSerializer(many=True, read_only=True)
+    user = UserSerializer(read_only=True)
+    address = AddressSerializer(many=False,read_only=True)
+    
+    class Meta:
+        model = Order
+        fields = ("id","user","address","shipments","total_amount","discount_amount","delivery_fee", "final_amount", "payment_method" ,"paid", "created_at", "updated_at")
 
 class ReturnRequestListRetrieveSerializer(serializers.ModelSerializer):
     items = OrderItemListRetrieveSerializer(many=True, read_only=True)
@@ -241,7 +212,8 @@ class CouponSerializer(serializers.ModelSerializer):
     class Meta:
         model = Coupon
         fields = ['id', 'code', 'discount', 'valid_from', 'valid_to']
-    
+        read_only_fields = ['supplier'] # Supplier is set by the view
+
     def create(self, validated_data):
         user = self.context['request'].user
         if not user.is_authenticated or not hasattr(user, 'supplier'):
@@ -249,12 +221,12 @@ class CouponSerializer(serializers.ModelSerializer):
         
         validated_data['supplier'] = user.supplier
         return super().create(validated_data)
-    
+
 class OrderDeliverSerializer(serializers.ModelSerializer):
+    confirmation_code = serializers.CharField(write_only=True)
     class Meta:
         model = Order
         fields = ['confirmation_code']
-        extra_kwargs = {'confirmation_code': {'write_only': True}}
 
 class WarehouseSerializer(serializers.ModelSerializer):
     class Meta:

@@ -47,20 +47,19 @@ class PaymentViewSet(viewsets.ViewSet):
             "line_items": [],
         }
 
-        # Add line items for the order
-        for item in order.items.all():
-            session_data["line_items"].append(
-                {
-                    "price_data": {
-                        "unit_amount": int(item.price * Decimal("100")),
-                        "currency": "EGP",
-                        "product_data": {
-                            "name": item.product.ProductName,
-                        },
+        total_amount=order.final_amount-delivery_fee
+        session_data["line_items"].append(
+            {
+                "price_data": {
+                    "unit_amount": int( total_amount * Decimal("100")),
+                    "currency": "EGP",
+                    "product_data": {
+                        "name": f"Order {order.id}",
                     },
-                    "quantity": item.quantity,
-                }
-            )
+                },
+                "quantity": 1,
+            }
+        )
 
         delivery_fee = order.delivery_fee if order.delivery_fee else Decimal("0.00")
         if delivery_fee > 0:

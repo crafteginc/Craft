@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Wishlist, WishlistItem, Cart, CartItems, Order, OrderItem, Coupon, DeliveryOrder, Warehouse
+from .models import Wishlist, WishlistItem, Cart, CartItems, Order, OrderItem, Coupon, DeliveryOrder, Warehouse, Shipment
 
 @admin.register(Wishlist)
 class WishlistAdmin(admin.ModelAdmin):
@@ -27,15 +27,21 @@ class CartItemsAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'status', 'created_at', 'total_amount', 'paid')
-    search_fields = ('user__email', 'user__first_name', 'user__last_name', 'product__ProductName')
-    list_filter = ('status', 'created_at', 'paid')
+    list_display = ('id', 'user', 'created_at', 'total_amount', 'paid')
+    search_fields = ('user__email', 'user__first_name', 'user__last_name')
+    list_filter = ('created_at', 'paid')
     ordering = ('-created_at',)
 
+@admin.register(Shipment)
+class ShipmentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'order', 'supplier', 'status', 'from_state', 'to_state', 'delivery_person')
+    list_filter = ('status', 'from_state', 'to_state', 'delivery_person')
+    search_fields = ('order__id', 'supplier__user__email', 'supplier__user__first_name')
+    
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ('order', 'quantity', 'price', 'created_at')
-    search_fields = ('order__user__email', 'order__user__first_name', 'order__user__last_name')
+    list_display = ('shipment', 'quantity', 'price', 'created_at')
+    search_fields = ('shipment__order__user__email', 'shipment__order__user__first_name', 'shipment__order__user__last_name')
     list_filter = ('created_at',)
     ordering = ('-created_at',)
 
@@ -58,3 +64,4 @@ class WarehouseAdmin(admin.ModelAdmin):
     list_display = ('name', 'Address', 'contact_person', 'contact_phone', 'delivery_fee')
     search_fields = ('name', 'contact_person', 'contact_phone')
     ordering = ('name',)
+
