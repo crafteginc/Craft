@@ -231,23 +231,14 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
 class SupplierProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()
     products = AccountProductSerializer(many=True, source='product_set')
-    orders_created_today = serializers.SerializerMethodField()  # Custom field for daily orders count
 
     class Meta:
         model = Supplier
         fields = [
             'user', 'id', 'SupplierCover', 'SupplierPhoto', 'CategoryTitle', 
-            'ExperienceYears', 'Rating', 'Orders', 'products', 'accepted_supplier', 
-            'orders_created_today'  
+            'ExperienceYears', 'Rating', 'Orders', 'products', 'accepted_supplier',  
         ]
         read_only_fields = ['Orders', 'Rating']
-
-    def get_orders_created_today(self, obj):
-        """
-        Calculate the number of orders created today for the supplier.
-        """
-        today_start = now().replace(hour=0, minute=0, second=0, microsecond=0)
-        return Order.objects.filter(shipments__supplier=obj, created_at__gte=today_start).count()
 
     def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})

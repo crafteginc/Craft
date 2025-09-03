@@ -78,7 +78,7 @@ User = get_user_model()
 class Order(models.Model):
     class OrderStatus(models.TextChoices):
         CREATED = 'created'
-        PAID='paid'
+        READY_TO_SHIP ='ready_to_ship'
         ON_MY_WAY = 'on my way'
         DELIVERED_TO_First_WAREHOUSE = 'delivered to First warehouse'
         In_Transmit='In Transmit'
@@ -117,6 +117,7 @@ class Order(models.Model):
 class Shipment(models.Model):
     class ShipmentStatus(models.TextChoices):
         CREATED = 'created'
+        READY_TO_SHIP ='ready_to_ship'
         ON_MY_WAY = 'on my way'
         DELIVERED_TO_First_WAREHOUSE = 'delivered to First warehouse'
         In_Transmit='In Transmit'
@@ -136,6 +137,7 @@ class Shipment(models.Model):
     confirmation_code = models.CharField(max_length=6, null=True, blank=True)
     delivery_confirmed_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=50, choices=ShipmentStatus.choices, default=ShipmentStatus.CREATED)
+    order_total_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     
     def save(self, *args, **kwargs):
         if not self.confirmation_code:
@@ -147,7 +149,7 @@ class Shipment(models.Model):
 
 class OrderItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    shipment = models.ForeignKey(Shipment, on_delete=models.CASCADE,null=True ,related_name="items")
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -157,15 +159,24 @@ class OrderItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"OrderItem {self.product.ProductName} by {self.shipment.order.user}"
+        return f"OrderItem {self.product.ProductName} for {self.order.user}"
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["shipment", "product"])]
+        indexes = [models.Index(fields=["order", "product"])]
 
     def get_cost(self):
         return self.price * self.quantity
     
+class ShipmentItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shipment = models.ForeignKey(Shipment, on_delete=models.CASCADE, related_name="items")
+    order_item = models.ForeignKey(OrderItem, on_delete=models.CASCADE, related_name="shipment_items")
+    quantity = models.PositiveIntegerField(default=1)
+
+    def __str__(self):
+        return f"Shipment Item {self.order_item.product.ProductName} in Shipment {self.shipment.id}"
+
 class Coupon(models.Model):
     supplier = models.ForeignKey(Supplier, related_name='coupons', on_delete=models.CASCADE)
     code = models.CharField(max_length=50, unique=True)
@@ -178,15 +189,6 @@ class Coupon(models.Model):
 
     def __str__(self):
         return self.code    
-
-class DeliveryOrder(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    delivery_person = models.ForeignKey(User, on_delete=models.CASCADE, related_name='delivery_orders')
-    order = models.ForeignKey(Order, related_name='delivery_orders', on_delete=models.CASCADE,null=True)
-    accepted_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"{self.delivery_person} accepted {self.order}" 
 
 class Warehouse(models.Model):
     name = models.CharField(max_length=100)

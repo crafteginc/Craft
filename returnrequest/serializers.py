@@ -1,74 +1,60 @@
 from rest_framework import serializers
 from products.models import Product
-from .models import ReturnRequest,Balance_Withdraw_Request,transactions,DeliveryReturnRequest
-from orders.serializers import UserSerializer,AddressSerializer,SimpleProductSerializer
+from .models import ReturnRequest, Balance_Withdraw_Request, transactions
+from orders.serializers import UserSerializer, AddressSerializer, SimpleProductSerializer
+from orders.models import OrderItem
 
 class ReturnRequestCreateSerializer(serializers.ModelSerializer):
+    product_id = serializers.UUIDField(write_only=True)
     quantity = serializers.IntegerField()
-
-    def validate_product_id(self, value):
-        product = Product.objects.filter(id=value).first()
-        if not product:
-            raise serializers.ValidationError("There is no product associated with the given ID")
-        return value
-
-    def save(self, **kwargs):
-        user = self.context['request'].user
-        product_id = self.validated_data["product_id"]
-        quantity = self.validated_data["quantity"]
-        product = Product.objects.get(id=product_id)
-        
-        if product.Supplier.user == user:
-            raise serializers.ValidationError("You cannot return your own product to the cart")
-        if quantity <= 0:
-            raise serializers.ValidationError("Quantity must be above 0")
-        
-        return self.instance
+    order_id = serializers.UUIDField(write_only=True)
 
     class Meta:
         model = ReturnRequest
-        fields = ['product_id', 'quantity']
+        fields = ['product_id', 'quantity', 'order_id']
+
+    def validate(self, data):
+        product_id = data.get('product_id')
+        quantity = data.get('quantity')
+        order_id = data.get('order_id')
+        user = self.context['request'].user
+
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            raise serializers.ValidationError("Product does not exist.")
+        
+        try:
+            order = OrderItem.objects.get(order_id=order_id, product=product)
+        except OrderItem.DoesNotExist:
+            raise serializers.ValidationError("Product not found in this order.")
+
+        if quantity <= 0 or quantity > order.quantity:
+            raise serializers.ValidationError(f"Quantity must be a positive number and not exceed your ordered quantity ({order.quantity}).")
+
+        if product.Supplier.user == user:
+            raise serializers.ValidationError("You cannot create a return request for your own product.")
+
+        if ReturnRequest.objects.filter(user=user, product=product, order_id=order_id).exists():
+            raise serializers.ValidationError("You have already submitted a return request for this product.")
+            
+        return data
 
 class ReturnRequestListRetrieveSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    address = AddressSerializer(many=False,read_only=True)
-    from_address =AddressSerializer(many=False,read_only=True)
-    confirmation_code = serializers.SerializerMethodField()
-    product = SimpleProductSerializer(many=False, allow_null=True)
+    product = SimpleProductSerializer(read_only=True)
+    status = serializers.CharField(source='get_status_display')
     
     class Meta:
         model = ReturnRequest
-        fields = ("id","user","address","from_address","product","amount","status", "created_at",'confirmation_code')
+        fields = ("id", "user", "from_state", "to_state", "product", "amount", "status", "created_at")
 
-    def get_confirmation_code(self, obj: ReturnRequest):
-        request = self.context.get('request')
-        if request and request.user == obj.user:
-            return obj.confirmation_code
-        return None  
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        if data['confirmation_code'] is None:
-            data.pop('confirmation_code')  
-        return data
-
-class DeliveryReturnRequestSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DeliveryReturnRequest
-        fields = ['confirmation_code']
-        extra_kwargs = {'confirmation_code': {'write_only': True}}
-
-class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
-    cost = serializers.SerializerMethodField()
-    product = SimpleProductSerializer()
-
+class ReturnRequestDeliverSerializer(serializers.ModelSerializer):
+    confirmation_code = serializers.CharField(write_only=True)
     class Meta:
         model = ReturnRequest
-        fields = ("id", "product", "quantity", "price", "cost")
+        fields = ['confirmation_code']
 
-    def get_cost(self, obj: ReturnRequest):
-        return obj.get_cost()
-        
 class BalanceWithdrawRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = Balance_Withdraw_Request

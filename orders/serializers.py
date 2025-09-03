@@ -1,11 +1,13 @@
-from .models import Order,OrderItem,Cart,CartItems,Wishlist,WishlistItem,Warehouse,Shipment
+from .models import Order, OrderItem, Cart, CartItems, Wishlist, WishlistItem, Warehouse, Shipment, ShipmentItem
 from accounts.serializers import AddressSerializer
-from products .models import Product
+from products.models import Product
 from .models import Coupon
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from accounts.models import User
 from products.serializers import ProductImageSerializer
+from collections import defaultdict
+from decimal import Decimal
 
 class SimpleProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
@@ -16,9 +18,20 @@ class SimpleProductSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         if data['images']:
-            data['images'] = [data['images'][0]]  # Include only the first image
+            data['images'] = [data['images'][0]]
         return data
-    
+class OrderItemProductSerializer(serializers.ModelSerializer):
+    images = ProductImageSerializer(many=True, read_only=True)
+    class Meta:
+        model = Product
+        fields = ["id",'images',"ProductName"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if data['images']:
+            data['images'] = [data['images'][0]]
+        return data
+
 class UserSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     class Meta:
@@ -160,8 +173,8 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         exclude = ("paid", "status")
         
 class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
+    product = OrderItemProductSerializer()
     cost = serializers.SerializerMethodField()
-    product = SimpleProductSerializer()
 
     class Meta:
         model = OrderItem
@@ -169,9 +182,19 @@ class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
 
     def get_cost(self, obj: OrderItem):
         return obj.get_cost()
-        
+
+class ShipmentItemSerializer(serializers.ModelSerializer):
+    product = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShipmentItem
+        fields = ["quantity", "product"]
+
+    def get_product(self, obj):
+        return SimpleProductSerializer(obj.order_item.product).data
+
 class ShipmentSerializer(serializers.ModelSerializer):
-    items = OrderItemListRetrieveSerializer(many=True, read_only=True)
+    items = ShipmentItemSerializer(many=True, read_only=True)
     confirmation_code = serializers.SerializerMethodField()
     status = serializers.CharField(source='get_status_display')
 
@@ -181,7 +204,6 @@ class ShipmentSerializer(serializers.ModelSerializer):
 
     def get_confirmation_code(self, obj: Shipment):
         request = self.context.get('request')
-        # Only show confirmation code to the user who placed the order
         if request and request.user == obj.order.user:
             return obj.confirmation_code
         return None
@@ -193,19 +215,36 @@ class ShipmentSerializer(serializers.ModelSerializer):
         return data
 
 class OrderListRetrieveSerializer(serializers.ModelSerializer):
-    shipment = serializers.SerializerMethodField()
-    
+    confirmation_code = serializers.SerializerMethodField()
+    order_items = OrderItemListRetrieveSerializer(many=True, source='items')
+
     class Meta:
         model = Order
-        fields = ("id", "final_amount", "paid", "created_at", "shipment")
+        fields = ("id", "final_amount", "paid", "created_at", "confirmation_code", "order_items")
 
-    def get_shipment(self, obj: Order):
-
+    def get_confirmation_code(self, obj: Order):
         latest_shipment = obj.shipments.order_by('-id').first()
-
-        if latest_shipment:
-            return ShipmentSerializer(latest_shipment, context=self.context).data
+        if latest_shipment and self.context.get('request').user == obj.user:
+            return latest_shipment.confirmation_code
         return None
+
+class SupplierOrderListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ("id", "created_at", "paid", "status", "final_amount")
+
+class SupplierOrderRetrieveSerializer(serializers.ModelSerializer):
+    order_items = OrderItemListRetrieveSerializer(many=True, source='items')
+    address = AddressSerializer()
+    payment_method = serializers.CharField(source='get_payment_method_display')
+    status = serializers.CharField(source='get_status_display')
+
+    class Meta:
+        model = Order
+        fields = (
+            "id", "user", "order_items", "address", "payment_method",
+            "total_amount", "discount_amount", "delivery_fee", "final_amount", "status"
+        )        
 
 class ReturnRequestListRetrieveSerializer(serializers.ModelSerializer):
     items = OrderItemListRetrieveSerializer(many=True, read_only=True)
@@ -219,7 +258,7 @@ class CouponSerializer(serializers.ModelSerializer):
     class Meta:
         model = Coupon
         fields = ['id', 'code', 'discount', 'valid_from', 'valid_to']
-        read_only_fields = ['supplier'] # Supplier is set by the view
+        read_only_fields = ['supplier']
 
     def create(self, validated_data):
         user = self.context['request'].user

@@ -11,9 +11,11 @@ router.register('orders-history', views.OrdersHistoryViewSet, basename="orders-h
 router.register('return-orders-products', views.ReturnOrdersProductsViewSet, basename='return-orders-products')
 router.register('orders', views.OrderViewSet, basename="order")
 router.register('coupons', views.CouponViewSet, basename='coupon')
-
+router.register('shipments', views.ShipmentViewSet, basename='shipment')
 
 urlpatterns = [
     path('', include(router.urls)),
     path('warehouses/', views.WarehouseListView.as_view(), name='warehouse-list'),
+    path('orders/orders-for-me/<uuid:pk>/', views.OrderViewSet.as_view({'get': 'retrieve_supplier_order'}), name='supplier-order-detail'),
+    path('orders/orders-for-me/<uuid:pk>/ready-to-ship/', views.OrderViewSet.as_view({'post': 'ready_to_ship'}), name='ready-to-ship'),
 ]

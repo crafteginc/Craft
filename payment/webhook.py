@@ -56,7 +56,6 @@ def stripe_webhook(request):
             order_id = client_reference_id.split(':')[1]
             try:
                 order = Order.objects.get(id=order_id)
-                order.status = 'paid'
                 order.paid = True
                 order.save()
             except Order.DoesNotExist:

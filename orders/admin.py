@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Wishlist, WishlistItem, Cart, CartItems, Order, OrderItem, Coupon, DeliveryOrder, Warehouse, Shipment
+from .models import Wishlist, WishlistItem, Cart, CartItems, Order, OrderItem, Coupon, Warehouse, Shipment, ShipmentItem
 
 @admin.register(Wishlist)
 class WishlistAdmin(admin.ModelAdmin):
@@ -32,18 +32,32 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('created_at', 'paid')
     ordering = ('-created_at',)
 
+class ShipmentItemInline(admin.TabularInline):
+    model = ShipmentItem
+    extra = 0
+    fields = ('order_item', 'quantity',)
+    readonly_fields = ('order_item', 'quantity',)
+
 @admin.register(Shipment)
 class ShipmentAdmin(admin.ModelAdmin):
     list_display = ('id', 'order', 'supplier', 'status', 'from_state', 'to_state', 'delivery_person')
     list_filter = ('status', 'from_state', 'to_state', 'delivery_person')
     search_fields = ('order__id', 'supplier__user__email', 'supplier__user__first_name')
-    
+    inlines = [ShipmentItemInline]
+
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ('shipment', 'quantity', 'price', 'created_at')
-    search_fields = ('shipment__order__user__email', 'shipment__order__user__first_name', 'shipment__order__user__last_name')
+    list_display = ('order', 'product', 'quantity', 'price', 'created_at')
+    search_fields = ('order__user__email', 'order__user__first_name', 'order__user__last_name', 'product__ProductName')
     list_filter = ('created_at',)
     ordering = ('-created_at',)
+
+@admin.register(ShipmentItem)
+class ShipmentItemAdmin(admin.ModelAdmin):
+    list_display = ('shipment', 'order_item', 'quantity')
+    search_fields = ('shipment__id', 'order_item__product__ProductName')
+    list_filter = ('shipment__status',)
+
 
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
@@ -52,16 +66,9 @@ class CouponAdmin(admin.ModelAdmin):
     list_filter = ('active', 'valid_from', 'valid_to')
     ordering = ('-valid_from',)
 
-@admin.register(DeliveryOrder)
-class DeliveryOrderAdmin(admin.ModelAdmin):
-    list_display = ('delivery_person', 'order', 'accepted_at')
-    search_fields = ('delivery_person__email', 'delivery_person__first_name', 'delivery_person__last_name', 'order__id')
-    list_filter = ('accepted_at',)
-    ordering = ('-accepted_at',)
 
 @admin.register(Warehouse)
 class WarehouseAdmin(admin.ModelAdmin):
     list_display = ('name', 'Address', 'contact_person', 'contact_phone', 'delivery_fee')
     search_fields = ('name', 'contact_person', 'contact_phone')
     ordering = ('name',)
-
