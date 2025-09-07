@@ -257,8 +257,22 @@ class ReturnRequestListRetrieveSerializer(serializers.ModelSerializer):
 class CouponSerializer(serializers.ModelSerializer):
     class Meta:
         model = Coupon
-        fields = ['id', 'code', 'discount', 'valid_from', 'valid_to']
-        read_only_fields = ['supplier']
+        fields = [
+            'id', 'code', 'discount', 'discount_type', 'valid_from', 'valid_to',
+            'active', 'min_purchase_amount', 'max_uses', 'max_uses_per_user',
+            'products'
+        ]
+        read_only_fields = ['supplier', 'uses_count']
+
+    def validate(self, data):
+        if data['valid_from'] >= data['valid_to']:
+            raise serializers.ValidationError("Valid from date must be before valid to date.")
+        
+        # Validation for discount type
+        if data.get('discount_type') == 'percentage' and data.get('discount') > 100:
+            raise serializers.ValidationError("Percentage discount cannot be more than 100.")
+            
+        return data
 
     def create(self, validated_data):
         user = self.context['request'].user
@@ -266,7 +280,10 @@ class CouponSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("User is not a supplier.")
         
         validated_data['supplier'] = user.supplier
-        return super().create(validated_data)
+        products_data = validated_data.pop('products', [])
+        coupon = super().create(validated_data)
+        coupon.products.set(products_data)
+        return coupon
 
 class OrderDeliverSerializer(serializers.ModelSerializer):
     confirmation_code = serializers.CharField(write_only=True)

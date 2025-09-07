@@ -1,4 +1,4 @@
-from .models import CartItems, Cart, Order, OrderItem, Warehouse, Shipment, ShipmentItem, Coupon
+from .models import CartItems, Cart, Order, OrderItem, Warehouse, Shipment, ShipmentItem, Coupon, CouponUsage
 from .serializers import *
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -10,16 +10,17 @@ from rest_framework import mixins, status, viewsets, generics
 from rest_framework.permissions import IsAuthenticated
 from accounts.models import Address, Delivery
 from products.models import Product
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework.decorators import action
-from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist
 from returnrequest.models import transactions
 from .permissions import DeliveryContractProvided, IsSupplier
-from .Help import get_craft_user_by_email, get_warehouse_by_name
+from .services import get_craft_user_by_email, get_warehouse_by_name
 from decimal import Decimal
 from collections import defaultdict
+import datetime
+from django.db.models import F
 
 class WishlistViewSet(viewsets.ModelViewSet):
     queryset = Wishlist.objects.all()
@@ -192,7 +193,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
                 supplier_state = supplier_address.State
                 customer_state = address.State
                 
-                # Calculate shipment total
                 shipment_total = sum(item.Product.UnitPrice * item.Quantity for item in items)
 
                 if supplier_state == customer_state:
@@ -241,6 +241,17 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             self._update_product_stock(cart_items)
             cart_items.delete()
             self._send_order_notification(request.user, order.id)
+            
+            if coupon_code:
+                try:
+                    coupon = Coupon.objects.get(code=coupon_code)
+                    coupon.uses_count = F('uses_count') + 1
+                    coupon.save(update_fields=['uses_count'])
+                    
+                    # Create a record for the user's usage
+                    CouponUsage.objects.create(user=request.user, coupon=coupon)
+                except Coupon.DoesNotExist:
+                    pass
 
         return Response({
             "message": "Order Created Successfully",
@@ -306,15 +317,45 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             items_by_supplier[item.Product.Supplier.user.id].append(item)
         
         supplier_addresses = self._get_supplier_addresses(cart_items)
+        
+        coupon = None
+        if coupon_code:
+            try:
+                coupon = Coupon.objects.get(
+                    code=coupon_code,
+                    active=True,
+                    valid_from__lte=timezone.now(),
+                    valid_to__gte=timezone.now(),
+                    uses_count__lt=F('max_uses')
+                )
+                
+                # Check for per-user usage limit using the new model
+                user_uses_count = CouponUsage.objects.filter(user=self.request.user, coupon=coupon).count()
+                if user_uses_count >= coupon.max_uses_per_user:
+                    raise ValidationError({"message": "Coupon usage limit reached for this user."})
+                
+            except Coupon.DoesNotExist:
+                raise ValidationError({"message": "Invalid or expired coupon."})
 
         for supplier_id, items in items_by_supplier.items():
-            supplier_address = supplier_addresses[supplier_id]
-            supplier_state = supplier_address.State
-            customer_state = customer_address.State
-            
-            shipment_total, shipment_discount = self._calculate_shipment_totals(items, coupon_code)
-            
+            shipment_total = sum(item.Product.UnitPrice * item.Quantity for item in items)
+            shipment_discount = Decimal('0.00')
+
+            # Apply coupon logic here
+            if coupon and coupon.supplier.user.id == supplier_id:
+                if shipment_total < coupon.min_purchase_amount:
+                    raise ValidationError({"message": f"Minimum purchase amount of {coupon.min_purchase_amount} not met for this coupon."})
+                    
+                if coupon.discount_type == Coupon.DiscountType.PERCENTAGE:
+                    shipment_discount = (coupon.discount / Decimal('100.00')) * shipment_total
+                elif coupon.discount_type == Coupon.DiscountType.FIXED_AMOUNT:
+                    shipment_discount = min(coupon.discount, shipment_total) # Ensure discount does not exceed total
+
             current_delivery_fee = Decimal('0.00')
+            supplier_address = supplier_addresses[supplier_id]
+            customer_state = customer_address.State
+            supplier_state = supplier_address.State
+            
             if supplier_state == customer_state:
                 warehouse = get_warehouse_by_name(customer_state)
                 current_delivery_fee = warehouse.delivery_fee
@@ -378,24 +419,7 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
                 raise ValidationError({"message": f"Address not found or multiple addresses found for supplier with ID {supplier_id}."})
             supplier_addresses[supplier_id] = addresses.first()
         return supplier_addresses
-
-    def _calculate_shipment_totals(self, cart_items, coupon_code):
-        total_amount = sum(item.Product.UnitPrice * item.Quantity for item in cart_items)
-        discount_amount = Decimal('0.00')
-        if coupon_code:
-            try:
-                coupon = Coupon.objects.get(
-                    code=coupon_code,
-                    active=True,
-                    valid_from__lte=timezone.now(),
-                    valid_to__gte=timezone.now()
-                )
-                if any(item.Product.Supplier == coupon.supplier for item in cart_items):
-                    discount_amount = (coupon.discount / Decimal('100.00')) * total_amount
-            except Coupon.DoesNotExist:
-                raise ValidationError({"message": "Invalid or expired coupon."})
-        return total_amount, discount_amount
-
+    
     def _handle_payment_and_transactions(self, user, payment_method, final_amount):
         if payment_method == Order.PaymentMethod.BALANCE:
             if user.Balance < final_amount:
@@ -413,7 +437,7 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
     def _update_product_stock(self, cart_items):
         for item in cart_items:
             item.Product.Stock = F('Stock') - item.Quantity
-            item.Product.save() 
+            item.Product.save(update_fields=['Stock'])
 
     def _send_order_notification(self, user, order_id):
         channel_layer = get_channel_layer()
@@ -530,11 +554,9 @@ class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
         return Response({'message': 'Shipment status updated to delivered successfully'}, status=status.HTTP_200_OK)
 
     def _process_payments(self, user, shipment, warehouse):
-        # Delivery person and Craft's cut from the delivery fee
         delivery_fee_share = warehouse.delivery_fee * Decimal('0.85')
         craft_delivery_cut = warehouse.delivery_fee * Decimal('0.15')
         
-        # Supplier and Craft's cut from the order items
         order_items = shipment.items.all()
         supplier_total = sum(item.order_item.price * item.order_item.quantity for item in order_items)
         

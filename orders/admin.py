@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Wishlist, WishlistItem, Cart, CartItems, Order, OrderItem, Coupon, Warehouse, Shipment, ShipmentItem
+from .models import Wishlist, WishlistItem, Cart, CartItems, Order, OrderItem, Coupon, Warehouse, Shipment, ShipmentItem,CouponUsage
 
 @admin.register(Wishlist)
 class WishlistAdmin(admin.ModelAdmin):
@@ -61,11 +61,31 @@ class ShipmentItemAdmin(admin.ModelAdmin):
 
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
-    list_display = ('code', 'supplier', 'discount', 'valid_from', 'valid_to', 'active')
-    search_fields = ('code', 'supplier__user__email', 'supplier__user__first_name', 'supplier__user__last_name')
-    list_filter = ('active', 'valid_from', 'valid_to')
-    ordering = ('-valid_from',)
-
+    list_display = ('code', 'supplier', 'discount', 'discount_type', 'valid_from', 'valid_to', 'active', 'max_uses', 'uses_count')
+    list_filter = ('active', 'valid_from', 'valid_to', 'discount_type', 'supplier')
+    search_fields = ('code', 'supplier__user__email', 'products__ProductName')
+    readonly_fields = ('uses_count',)
+    filter_horizontal = ('products',)
+    fieldsets = (
+        (None, {
+            'fields': ('code', 'supplier', 'discount', 'discount_type', 'min_purchase_amount', 'terms')
+        }),
+        ('Availability', {
+            'fields': ('valid_from', 'valid_to', 'active')
+        }),
+        ('Usage Limits', {
+            'fields': ('max_uses', 'uses_count', 'max_uses_per_user')
+        }),
+        ('Applicable Products', {
+            'fields': ('products',)
+        }),
+    )
+@admin.register(CouponUsage)
+class CouponUsageAdmin(admin.ModelAdmin):
+    list_display = ('user', 'coupon', 'used_at')
+    list_filter = ('coupon', 'used_at')
+    search_fields = ('user__email', 'coupon__code')
+    readonly_fields = ('used_at',)
 
 @admin.register(Warehouse)
 class WarehouseAdmin(admin.ModelAdmin):

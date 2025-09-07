@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 import random
 import string
+from django.core.validators import MinValueValidator
 
 class OrderManager(models.Manager):
     def for_delivery_person(self, user):
@@ -178,17 +179,34 @@ class ShipmentItem(models.Model):
         return f"Shipment Item {self.order_item.product.ProductName} in Shipment {self.shipment.id}"
 
 class Coupon(models.Model):
+    class DiscountType(models.TextChoices):
+        PERCENTAGE = 'percentage'
+        FIXED_AMOUNT = 'fixed_amount'
+
     supplier = models.ForeignKey(Supplier, related_name='coupons', on_delete=models.CASCADE)
     code = models.CharField(max_length=50, unique=True)
-    discount = models.DecimalField(max_digits=5, decimal_places=2)
+    discount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    discount_type = models.CharField(max_length=12, choices=DiscountType.choices, default=DiscountType.PERCENTAGE)
     valid_from = models.DateTimeField()
     valid_to = models.DateTimeField()
     active = models.BooleanField(default=True)
+    min_purchase_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, validators=[MinValueValidator(0)])
+    max_uses = models.IntegerField(default=100)
+    uses_count = models.IntegerField(default=0)
+    max_uses_per_user = models.IntegerField(default=1)
     terms = models.TextField()
-    products = models.ManyToManyField(Product, related_name='coupons')
+    products = models.ManyToManyField(Product, related_name='coupons', blank=True)
 
     def __str__(self):
-        return self.code    
+        return self.code
+
+class CouponUsage(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE)
+    used_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'coupon')
 
 class Warehouse(models.Model):
     name = models.CharField(max_length=100)
