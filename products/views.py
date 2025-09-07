@@ -51,13 +51,13 @@ class ProductsViewSet(ModelViewSet):
     search_fields = ['ProductName','ProductDescription']
     ordering_fields = ['UnitPrice']
     pagination_class = StandardResultsSetPagination
-    permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
+        # Apply permissions based on the request method (action)
         if self.request.method == 'POST':
-            permission_classes = [permissions.IsAuthenticated, SupplierContractProvided]
+            permission_classes = [permissions.IsAuthenticated, SupplierContractProvided, SupplierHasAddress]
         else:
-            permission_classes = [permissions.AllowAny]  # Or any other permissions you want to apply for GET requests
+            permission_classes = [permissions.AllowAny]
         return [permission() for permission in permission_classes]
 
     def get_serializer_class(self):

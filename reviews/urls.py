@@ -1,18 +1,18 @@
 from django.urls import path
-from .views import *
+from .views import ReviewCreateView, ReviewUpdateDeleteView, ReviewListView
+
 urlpatterns = [
+    # Single endpoint for creating a review.
+    # The serializer handles the type of review based on the request body (e.g., 'product_id').
+    path('reviews/', ReviewCreateView.as_view(), name='review-create'),
+
+    # Single endpoint for retrieving, updating, and deleting a specific review by its primary key.
+    path('reviews/<int:pk>/', ReviewUpdateDeleteView.as_view(), name='review-update-delete'),
     
-    path('product/', ProductReviewCreate.as_view(), name='product-review-create'),
-    path('product/<int:pk>/', ProductReviewUpdateDelete.as_view(), name='product-review-update-delete'),
-    path('product-reviews/<int:product_id>/', ProductReviewList.as_view(), name='product-review-list'),
-    path('course/', CourseReviewCreate.as_view(), name='course-review-create'),
-    path('course/<int:pk>/', CourseReviewUpdateDelete.as_view(), name='course-review-update-delete'),
-    path('course-reviews/<int:course_id>/', CourseReviewList.as_view(), name='course-review-list'),
-    path('delivery/', DeliveryReviewCreate.as_view(), name='delivery-review-create'),
-    path('delivery/<int:pk>/', DeliveryReviewUpdateDelete.as_view(), name='delivery-review-update-delete'),
-    path('delivery-reviews/<int:delivery_id>/', DeliveryReviewList.as_view(), name='delivery-review-list'),
-    path('supplier/', SupplierReviewCreate.as_view(), name='supplier-review-create'),
-    path('supplier/<int:pk>/', SupplierReviewUpdateDelete.as_view(), name='supplier-review-update-delete'),
-    path('supplier-reviews/<int:supplier_id>/', SupplierReviewList.as_view(), name='supplier-review-list'),
-    
+    # Endpoints to list reviews for a specific object type.
+    # Each URL pattern maps to the same ReviewListView, which uses the URL kwargs to filter.
+    path('products/<int:product_id>/reviews/', ReviewListView.as_view(), name='product-review-list'),
+    path('courses/<int:course_id>/reviews/', ReviewListView.as_view(), name='course-review-list'),
+    path('deliveries/<int:delivery_id>/reviews/', ReviewListView.as_view(), name='delivery-review-list'),
+    path('suppliers/<int:supplier_id>/reviews/', ReviewListView.as_view(), name='supplier-review-list'),
 ]

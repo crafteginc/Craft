@@ -229,7 +229,7 @@ class SupplierProfileAPIView(APIView):
 
     def patch(self, request, format=None):
         supplier = self.get_object(request.user)
-        serializer = SupplierProfileSerializer(supplier, data=request.data, partial=True)
+        serializer = SupplierProfileSerializer(supplier, data=request.data, partial=True) 
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
