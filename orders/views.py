@@ -133,6 +133,9 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         payment_method = ""
         self._validate_request_data(cart, address_id, payment_method)
         address = Address.objects.filter(user=request.user, id=address_id).first()
+        if not address:
+            raise ValidationError("Address not found or does not belong to the user.")
+
         cart_items = CartItems.objects.filter(CartID=cart)
         self._validate_cart_stock(cart_items)
 
@@ -145,7 +148,7 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             "Deliverey Fee": totals['delivery_fee'],
             "final_amount": totals['final_amount']
         }, status=status.HTTP_200_OK)
-
+    
     def create(self, request, *args, **kwargs):
         cart = Cart.objects.get(User=request.user)
         address_id = request.data.get("address_id")
@@ -326,10 +329,11 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
                     active=True,
                     valid_from__lte=timezone.now(),
                     valid_to__gte=timezone.now(),
-                    uses_count__lt=F('max_uses')
                 )
                 
-                # Check for per-user usage limit using the new model
+                if coupon.uses_count >= coupon.max_uses:
+                     raise ValidationError({"message": "This coupon has exceeded its total usage limit."})
+                
                 user_uses_count = CouponUsage.objects.filter(user=self.request.user, coupon=coupon).count()
                 if user_uses_count >= coupon.max_uses_per_user:
                     raise ValidationError({"message": "Coupon usage limit reached for this user."})
@@ -341,7 +345,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             shipment_total = sum(item.Product.UnitPrice * item.Quantity for item in items)
             shipment_discount = Decimal('0.00')
 
-            # Apply coupon logic here
             if coupon and coupon.supplier.user.id == supplier_id:
                 if shipment_total < coupon.min_purchase_amount:
                     raise ValidationError({"message": f"Minimum purchase amount of {coupon.min_purchase_amount} not met for this coupon."})
@@ -349,7 +352,7 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
                 if coupon.discount_type == Coupon.DiscountType.PERCENTAGE:
                     shipment_discount = (coupon.discount / Decimal('100.00')) * shipment_total
                 elif coupon.discount_type == Coupon.DiscountType.FIXED_AMOUNT:
-                    shipment_discount = min(coupon.discount, shipment_total) # Ensure discount does not exceed total
+                    shipment_discount = min(coupon.discount, shipment_total)
 
             current_delivery_fee = Decimal('0.00')
             supplier_address = supplier_addresses[supplier_id]
