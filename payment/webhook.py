@@ -39,12 +39,10 @@ def stripe_webhook(request):
         session_id = session.get('id')
         payment_intent_id = session.get('payment_intent')
         
-        # Check if the client_reference_id is a valid UUID for a PaymentHistory record
         try:
             payment_history_id = client_reference_id
             payment_history = PaymentHistory.objects.get(id=payment_history_id)
         except (PaymentHistory.DoesNotExist, ValueError):
-            # Fallback to the old logic for course payments
             if client_reference_id and client_reference_id.startswith('course:'):
                 course_id = client_reference_id.split(':')[1]
                 try:
@@ -69,10 +67,11 @@ def stripe_webhook(request):
 
             user = payment_history.user
             cart = payment_history.cart
-            address_id = payment_history.address_id
+            address_object = payment_history.address_id # Get the Address object instance
             coupon_code = payment_history.coupon_code
             
-            order = create_order_from_cart(user, cart, address_id, coupon_code, Order.PaymentMethod.CREDIT_CARD, is_paid=True)
+            # Pass the Address ID instead of the object
+            order = create_order_from_cart(user, cart, address_object.id, coupon_code, Order.PaymentMethod.CREDIT_CARD, is_paid=True)
             
             payment_history.order = order
             payment_history.save()
