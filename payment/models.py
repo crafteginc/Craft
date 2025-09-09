@@ -1,5 +1,5 @@
 from django.db import models
-from accounts.models import User
+from accounts.models import User,Address
 from orders.models import Order, Cart
 from course.models import Course, Enrollment
 import uuid
@@ -30,7 +30,9 @@ class PaymentHistory(models.Model):
         null=True,
         help_text="The associated cart for the payment."
     )
-    address_id = models.UUIDField(
+    address_id= models.ForeignKey(
+        Address,
+        on_delete=models.SET_NULL,
         blank=True,
         null=True,
         help_text="The address used for the order."
@@ -55,7 +57,6 @@ class PaymentHistory(models.Model):
         blank=True,
         help_text="The ID of the Stripe checkout session."
     )
-    # NEW FIELD: To store the Stripe Payment Intent ID
     stripe_payment_intent_id = models.CharField(
         max_length=255,
         unique=True,

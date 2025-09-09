@@ -139,7 +139,7 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         cart_items = CartItems.objects.filter(CartID=cart)
         self._validate_cart_stock(cart_items)
 
-        totals = self._calculate_all_order_totals(cart_items, coupon_code, address)
+        totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, request.user)
 
         return Response({
             "message": "Order totals calculated successfully",
@@ -162,20 +162,16 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         self._validate_cart_stock(cart_items)
 
         if payment_method == Order.PaymentMethod.CREDIT_CARD:
-            # The logic for creating a payment session is now in payment/views.py.
-            # This endpoint will simply return a status indicating redirection.
             return Response({
                 "message": "Redirecting to payment gateway...",
                 "status": "pending_payment"
             }, status=status.HTTP_200_OK)
         
-        # Check balance sufficiency before creating the order
         if payment_method == Order.PaymentMethod.BALANCE:
             totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, request.user)
             if request.user.Balance < totals['final_amount']:
                 raise ValidationError({"message": "Insufficient balance for this order."})
         
-        # For Cash on Delivery and Balance, create the order directly.
         order = create_order_from_cart(request.user, cart, address_id, coupon_code, payment_method)
         
         return Response({
@@ -232,99 +228,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         
         return Response({"message": f"Shipment for order {pk} is now ready to ship."}, status=status.HTTP_200_OK)
 
-    def _calculate_all_order_totals(self, cart_items, coupon_code, customer_address):
-        # This method is now obsolete and should be replaced with the helper function
-        # I'll keep the logic here for now, but the `create` and `calculate_totals`
-        # methods will call the helper function from `services.py`
-        total_amount = Decimal('0.00')
-        discount_amount = Decimal('0.00')
-        delivery_fee = Decimal('0.00')
-
-        items_by_supplier = defaultdict(list)
-        for item in cart_items:
-            items_by_supplier[item.Product.Supplier.user.id].append(item)
-        
-        supplier_addresses = self._get_supplier_addresses(cart_items)
-        
-        coupon = None
-        if coupon_code:
-            try:
-                coupon = Coupon.objects.get(
-                    code=coupon_code,
-                    active=True,
-                    valid_from__lte=timezone.now(),
-                    valid_to__gte=timezone.now(),
-                )
-                
-                if coupon.uses_count >= coupon.max_uses:
-                     raise ValidationError({"message": "This coupon has exceeded its total usage limit."})
-                
-                user_uses_count = CouponUsage.objects.filter(user=self.request.user, coupon=coupon).count()
-                if user_uses_count >= coupon.max_uses_per_user:
-                    raise ValidationError({"message": "Coupon usage limit reached for this user."})
-                
-            except Coupon.DoesNotExist:
-                raise ValidationError({"message": "Invalid or expired coupon."})
-
-        for supplier_id, items in items_by_supplier.items():
-            shipment_total = sum(item.Product.UnitPrice * item.Quantity for item in items)
-            shipment_discount = Decimal('0.00')
-
-            if coupon and coupon.supplier.user.id == supplier_id:
-                if shipment_total < coupon.min_purchase_amount:
-                    raise ValidationError({"message": f"Minimum purchase amount of {coupon.min_purchase_amount} not met for this coupon."})
-                    
-                if coupon.discount_type == Coupon.DiscountType.PERCENTAGE:
-                    shipment_discount = (coupon.discount / Decimal('100.00')) * shipment_total
-                elif coupon.discount_type == Coupon.DiscountType.FIXED_AMOUNT:
-                    shipment_discount = min(coupon.discount, shipment_total)
-
-            current_delivery_fee = Decimal('0.00')
-            supplier_address = supplier_addresses[supplier_id]
-            customer_state = customer_address.State
-            supplier_state = supplier_address.State
-            
-            if supplier_state == customer_state:
-                warehouse = get_warehouse_by_name(customer_state)
-                current_delivery_fee = warehouse.delivery_fee
-            else:
-                warehouse_dest = get_warehouse_by_name(customer_state)
-                warehouse_source = get_warehouse_by_name(supplier_state)
-                current_delivery_fee = warehouse_dest.delivery_fee + warehouse_source.delivery_fee + Decimal('20.00')
-            
-            total_amount += shipment_total
-            discount_amount += shipment_discount
-            delivery_fee += current_delivery_fee
-        
-        final_amount = total_amount - discount_amount + delivery_fee
-        
-        return {
-            'total_amount': total_amount,
-            'discount_amount': discount_amount,
-            'delivery_fee': delivery_fee,
-            'final_amount': final_amount
-        }
-
-    def _create_shipment(self, order, supplier, from_address, to_address, cart_items, status, delivery_fee, order_items_map, shipment_total):
-        shipment = Shipment.objects.create(
-            order=order,
-            supplier=supplier,
-            from_state=from_address.State,
-            to_state=to_address.State,
-            from_address=from_address,
-            to_address=to_address,
-            status=status,
-            order_total_value=shipment_total
-        )
-        ShipmentItem.objects.bulk_create([
-            ShipmentItem(
-                shipment=shipment,
-                order_item=order_items_map[item.Product.id],
-                quantity=item.Quantity
-            ) for item in cart_items
-        ])
-        return shipment
-
     def _validate_request_data(self, cart, address_id, payment_method):
         if not address_id:
             raise ValidationError({"message": "Address ID is required."})
@@ -347,20 +250,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
                 raise ValidationError({"message": f"Address not found or multiple addresses found for supplier with ID {supplier_id}."})
             supplier_addresses[supplier_id] = addresses.first()
         return supplier_addresses
-    
-    def _handle_payment_and_transactions(self, user, payment_method, final_amount):
-        if payment_method == Order.PaymentMethod.BALANCE:
-            if user.Balance < final_amount:
-                raise ValidationError({"message": "Insufficient balance for this order. Your Payment Method will turn into Cash on Delivery."})
-            
-            user.Balance -= final_amount
-            Craft.Balance += final_amount
-            transactions.objects.create(user=user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=-final_amount)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=final_amount)
-            user.save()
-            
-        cashback_amount = final_amount * Decimal('0.05')
-        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.CASH_BACK, amount=cashback_amount)
 
     def _update_product_stock(self, cart_items):
         for item in cart_items:

@@ -29,32 +29,32 @@ class PaymentViewSet(viewsets.ViewSet):
         address_id = request.data.get("address_id")
         coupon_code = request.data.get("coupon_code")
         
-        # We don't have an order object yet, so we will use the cart and user details
-        cart_items = CartItems.objects.filter(CartID=cart)
-        address = Address.objects.filter(user=user, id=address_id).first()
-
-        # Replicate the validation and total calculation logic from OrderViewSet
-        if not address:
+        # Retrieve the Address instance using the ID
+        try:
+            address = Address.objects.get(user=user, id=address_id)
+        except Address.DoesNotExist:
             raise ValidationError("Address not found or does not belong to the user.")
-
+        
+        cart_items = CartItems.objects.filter(CartID=cart)
+        
         if not cart_items.exists():
             raise ValidationError({"message": "Cart is empty. Cannot create order."})
 
         # Calculate totals using the helper function
-        totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address)
+        totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, user)
 
         # Create a pending PaymentHistory record before creating the session
+        # Pass the Address object instance to the 'address_id' foreign key field
         payment_history = PaymentHistory.objects.create(
             user=user,
             cart=cart,
             payment_status='pending',
-            address_id=address_id,
+            address_id=address,  # Corrected: Pass the `address` object
             coupon_code=coupon_code,
         )
         
         base_success_url = request.build_absolute_uri(reverse("payment:success"))
         success_url = f"{base_success_url}?session_id={{CHECKOUT_SESSION_ID}}"
-        
         cancel_url = request.build_absolute_uri(reverse("payment:cancel"))
 
         session_data = {
