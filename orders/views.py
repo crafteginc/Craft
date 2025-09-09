@@ -16,7 +16,7 @@ from rest_framework.decorators import action
 from django.core.exceptions import ObjectDoesNotExist
 from returnrequest.models import transactions
 from .permissions import DeliveryContractProvided, IsSupplier
-from .services import get_craft_user_by_email, get_warehouse_by_name
+from .services import get_craft_user_by_email, get_warehouse_by_name, create_order_from_cart, _calculate_all_order_totals_helper
 from decimal import Decimal
 from collections import defaultdict
 import datetime
@@ -161,101 +161,23 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         
         self._validate_cart_stock(cart_items)
 
-        with transaction.atomic():
-            totals = self._calculate_all_order_totals(cart_items, coupon_code, address)
-            
-            order = Order.objects.create(
-                user=request.user,
-                address=address,
-                payment_method=payment_method,
-                total_amount=totals['total_amount'],
-                discount_amount=totals['discount_amount'],
-                delivery_fee=totals['delivery_fee'],
-                final_amount=totals['final_amount']
-            )
-
-            order_items_map = {}
-            for item in cart_items:
-                order_item = OrderItem.objects.create(
-                    order=order,
-                    product=item.Product,
-                    quantity=item.Quantity,
-                    price=item.Product.UnitPrice,
-                    color=item.Color,
-                    size=item.Size,
-                )
-                order_items_map[item.Product.id] = order_item
-
-            items_by_supplier = defaultdict(list)
-            for item in cart_items:
-                items_by_supplier[item.Product.Supplier.user.id].append(item)
-            supplier_addresses = self._get_supplier_addresses(cart_items)
-
-            for supplier_id, items in items_by_supplier.items():
-                supplier_address = supplier_addresses[supplier_id]
-                supplier_state = supplier_address.State
-                customer_state = address.State
-                
-                shipment_total = sum(item.Product.UnitPrice * item.Quantity for item in items)
-
-                if supplier_state == customer_state:
-                    warehouse = get_warehouse_by_name(customer_state)
-                    self._create_shipment(
-                        order, 
-                        items[0].Product.Supplier,
-                        supplier_addresses[supplier_id], 
-                        address, 
-                        items, 
-                        Shipment.ShipmentStatus.CREATED,
-                        warehouse.delivery_fee,
-                        order_items_map,
-                        shipment_total
-                    )
-                else:
-                    warehouse_dest = get_warehouse_by_name(customer_state)
-                    warehouse_source = get_warehouse_by_name(supplier_state)
-                    
-                    self._create_shipment(
-                        order, 
-                        items[0].Product.Supplier,
-                        warehouse_source.Address, 
-                        address, 
-                        items, 
-                        Shipment.ShipmentStatus.In_Transmit,
-                        warehouse_dest.delivery_fee,
-                        order_items_map,
-                        shipment_total
-                    )
-                    
-                    self._create_shipment(
-                        order, 
-                        items[0].Product.Supplier,
-                        supplier_addresses[supplier_id], 
-                        warehouse_dest.Address, 
-                        items, 
-                        Shipment.ShipmentStatus.CREATED,
-                        warehouse_source.delivery_fee,
-                        order_items_map,
-                        shipment_total
-                    )
-            
-            self._handle_payment_and_transactions(request.user, payment_method, totals['final_amount'])
-            
-            self._update_product_stock(cart_items)
-            cart_items.delete()
-            self._send_order_notification(request.user, order.id)
-            
-            if coupon_code:
-                try:
-                    coupon = Coupon.objects.get(code=coupon_code)
-                    coupon.uses_count = F('uses_count') + 1
-                    coupon.save(update_fields=['uses_count'])
-                    
-                    # Create a record for the user's usage
-                    CouponUsage.objects.create(user=request.user, coupon=coupon)
-                except Coupon.DoesNotExist:
-                    pass
-
+        if payment_method == Order.PaymentMethod.CREDIT_CARD:
+            # The logic for creating a payment session is now in payment/views.py.
+            # This endpoint will simply return a status indicating redirection.
+            return Response({
+                "message": "Redirecting to payment gateway...",
+                "status": "pending_payment"
+            }, status=status.HTTP_200_OK)
+        
+        # Check balance sufficiency before creating the order
+        if payment_method == Order.PaymentMethod.BALANCE:
+            totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, request.user)
+            if request.user.Balance < totals['final_amount']:
+                raise ValidationError({"message": "Insufficient balance for this order."})
+        
+        # For Cash on Delivery and Balance, create the order directly.
+        order = create_order_from_cart(request.user, cart, address_id, coupon_code, payment_method)
+        
         return Response({
             "message": "Order Created Successfully",
             "order_id": str(order.id),
@@ -311,6 +233,9 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         return Response({"message": f"Shipment for order {pk} is now ready to ship."}, status=status.HTTP_200_OK)
 
     def _calculate_all_order_totals(self, cart_items, coupon_code, customer_address):
+        # This method is now obsolete and should be replaced with the helper function
+        # I'll keep the logic here for now, but the `create` and `calculate_totals`
+        # methods will call the helper function from `services.py`
         total_amount = Decimal('0.00')
         discount_amount = Decimal('0.00')
         delivery_fee = Decimal('0.00')
@@ -557,6 +482,7 @@ class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
         return Response({'message': 'Shipment status updated to delivered successfully'}, status=status.HTTP_200_OK)
 
     def _process_payments(self, user, shipment, warehouse):
+        Craft = get_craft_user_by_email("CraftEG@craft.com")
         delivery_fee_share = warehouse.delivery_fee * Decimal('0.85')
         craft_delivery_cut = warehouse.delivery_fee * Decimal('0.15')
         
@@ -603,7 +529,7 @@ class ReturnOrdersProductsViewSet(mixins.ListModelMixin, mixins.RetrieveModelMix
 
     def get_queryset(self):
         user = self.request.user
-        fourteen_days_ago = timezone.now() - timezone.timedelta(days=14)
+        fourteen_days_ago = timezone.now() - datetime.timedelta(days=14)
         if user.is_customer:
             return Order.objects.filter(user=user, updated_at__gte=fourteen_days_ago)
         return Order.objects.none()

@@ -1,12 +1,14 @@
 from django.db import models
 from accounts.models import User
-from orders.models import Order
+from orders.models import Order, Cart
 from course.models import Course, Enrollment
+import uuid
 
 class PaymentHistory(models.Model):
     """
     Model to log payment attempts and their status.
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -20,6 +22,24 @@ class PaymentHistory(models.Model):
         blank=True,
         null=True,
         help_text="The associated order for the payment, if any."
+    )
+    cart = models.ForeignKey(
+        Cart,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        help_text="The associated cart for the payment."
+    )
+    address_id = models.UUIDField(
+        blank=True,
+        null=True,
+        help_text="The address used for the order."
+    )
+    coupon_code = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="The coupon code used for the order."
     )
     course = models.ForeignKey(
         Course,
@@ -63,4 +83,3 @@ class PaymentHistory(models.Model):
         elif self.course:
             return f"Payment for Course {self.course.CourseID} - {self.payment_status}"
         return f"Payment by {self.user.email} - {self.payment_status}"
-

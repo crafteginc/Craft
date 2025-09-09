@@ -6,10 +6,13 @@ from django.urls import reverse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
-from orders.models import Order
+from rest_framework.exceptions import ValidationError
+from orders.models import  Cart, CartItems
 from course.models import Course, Enrollment
-from .serializers import OrderInformationSerializer, CourseInformationSerializer
-from .models import PaymentHistory  # Import the new model
+from .serializers import  CourseInformationSerializer
+from .models import PaymentHistory
+from orders.services import _calculate_all_order_totals_helper
+from accounts.models import Address
 
 # Stripe API key
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -21,19 +24,34 @@ class PaymentViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["post"])
     def process_order_payment(self, request):
-        serializer = OrderInformationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        order_id = serializer.validated_data["order_id"]
-        order = get_object_or_404(Order, id=order_id)
+        user = request.user
+        cart = get_object_or_404(Cart, User=user)
+        address_id = request.data.get("address_id")
+        coupon_code = request.data.get("coupon_code")
+        
+        # We don't have an order object yet, so we will use the cart and user details
+        cart_items = CartItems.objects.filter(CartID=cart)
+        address = Address.objects.filter(user=user, id=address_id).first()
+
+        # Replicate the validation and total calculation logic from OrderViewSet
+        if not address:
+            raise ValidationError("Address not found or does not belong to the user.")
+
+        if not cart_items.exists():
+            raise ValidationError({"message": "Cart is empty. Cannot create order."})
+
+        # Calculate totals using the helper function
+        totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address)
 
         # Create a pending PaymentHistory record before creating the session
         payment_history = PaymentHistory.objects.create(
-            user=request.user,
-            order=order,
-            payment_status='pending'
+            user=user,
+            cart=cart,
+            payment_status='pending',
+            address_id=address_id,
+            coupon_code=coupon_code,
         )
         
-        # FIX: Construct the base URL first, then append the unencoded placeholder
         base_success_url = request.build_absolute_uri(reverse("payment:success"))
         success_url = f"{base_success_url}?session_id={{CHECKOUT_SESSION_ID}}"
         
@@ -41,25 +59,28 @@ class PaymentViewSet(viewsets.ViewSet):
 
         session_data = {
             "mode": "payment",
-            "client_reference_id": f"order:{order.id}",
+            "client_reference_id": str(payment_history.id),
             "success_url": success_url,
             "cancel_url": cancel_url,
             "line_items": [],
         }
-        delivery_fee = order.delivery_fee if order.delivery_fee else Decimal("0.00")
-        total_amount=order.final_amount-delivery_fee
-        session_data["line_items"].append(
-            {
-                "price_data": {
-                    "unit_amount": int( total_amount * Decimal("100")),
-                    "currency": "EGP",
-                    "product_data": {
-                        "name": f"Order {order.id}",
+
+        delivery_fee = totals['delivery_fee'] if totals['delivery_fee'] else Decimal("0.00")
+        sub_total_amount = totals['total_amount'] - totals['discount_amount']
+        
+        if sub_total_amount > 0:
+            session_data["line_items"].append(
+                {
+                    "price_data": {
+                        "unit_amount": int(sub_total_amount * Decimal("100")),
+                        "currency": "EGP",
+                        "product_data": {
+                            "name": f"Order Items",
+                        },
                     },
-                },
-                "quantity": 1,
-            }
-        )
+                    "quantity": 1,
+                }
+            )
 
         if delivery_fee > 0:
             session_data["line_items"].append(
@@ -77,7 +98,6 @@ class PaymentViewSet(viewsets.ViewSet):
         
         try:
             session = stripe.checkout.Session.create(**session_data)
-            # Update the payment history with the session ID
             payment_history.stripe_session_id = session.id
             payment_history.save()
             return Response({"status": "success", "url": session.url})
@@ -106,14 +126,12 @@ class CoursePaymentViewSet(viewsets.ViewSet):
         if Enrollment.objects.filter(Course=course, EnrolledUser=buyer).exists():
             return Response({"error": "You are already enrolled in this course."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create a pending PaymentHistory record
         payment_history = PaymentHistory.objects.create(
             user=buyer,
             course=course,
             payment_status='pending'
         )
 
-        # FIX: Construct the base URL first, then append the unencoded placeholder
         base_success_url = request.build_absolute_uri(reverse("payment:success"))
         success_url = f"{base_success_url}?session_id={{CHECKOUT_SESSION_ID}}"
 
@@ -138,7 +156,6 @@ class CoursePaymentViewSet(viewsets.ViewSet):
         
         try:
             session = stripe.checkout.Session.create(**session_data)
-            # Update the payment history with the session ID
             payment_history.stripe_session_id = session.id
             payment_history.save()
             return Response({"status": "success", "url": session.url})
@@ -159,7 +176,6 @@ def payment_completed(request):
 
     try:
         session = stripe.checkout.Session.retrieve(session_id)
-        # You can retrieve details here, but the webhook is the source of truth.
         return Response({
             "message": "Payment accepted, processing...",
             "session_id": session.id

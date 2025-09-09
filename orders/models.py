@@ -14,7 +14,7 @@ class OrderManager(models.Manager):
         """Returns shipments relevant to a specific delivery person."""
         try:
             return self.filter(
-                Q(shipments__from_state=user.delivery.governorate) & 
+                Q(shipments__from_state=user.delivery.governorate) &
                 (Q(shipments__delivery_person=user) | Q(shipments__delivery_person__isnull=True)) &
                 ~Q(shipments__status__in=[
                     Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY,
@@ -60,7 +60,7 @@ class Cart(models.Model):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     User = models.OneToOneField(User, on_delete=models.CASCADE)
     Created_at = models.DateTimeField(auto_now_add=True,blank=True, null=True)
- 
+
     def __str__(self):
         return f"Cart ID:{self.id} for {self.User.get_full_name}"
 
@@ -68,12 +68,12 @@ class CartItems(models.Model):
     CartID = models.ForeignKey(Cart, on_delete=models.CASCADE,related_name="items", null=True, blank=True)
     Product = models.ForeignKey(Product, on_delete=models.CASCADE,related_name='cartitems',null=True, blank=True)
     Quantity = models.PositiveIntegerField()
-    Color = models.CharField(max_length=20,blank=True, null=True) 
-    Size = models.CharField(max_length=20,blank=True, null=True) 
+    Color = models.CharField(max_length=20,blank=True, null=True)
+    Size = models.CharField(max_length=20,blank=True, null=True)
 
     def __str__(self):
         return f"Cart ID {self.CartID} Cart Item: {self.Product.ProductName}"
-    
+
 User = get_user_model()
 
 class Order(models.Model):
@@ -139,7 +139,7 @@ class Shipment(models.Model):
     delivery_confirmed_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=50, choices=ShipmentStatus.choices, default=ShipmentStatus.CREATED)
     order_total_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
-    
+
     def save(self, *args, **kwargs):
         if not self.confirmation_code:
             self.confirmation_code = ''.join(random.choices(string.digits, k=4))
@@ -154,7 +154,7 @@ class OrderItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    color = models.CharField(max_length=20,blank=True, null=True) 
+    color = models.CharField(max_length=20,blank=True, null=True)
     size = models.CharField(max_length=20,blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -168,7 +168,7 @@ class OrderItem(models.Model):
 
     def get_cost(self):
         return self.price * self.quantity
-    
+
 class ShipmentItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     shipment = models.ForeignKey(Shipment, on_delete=models.CASCADE, related_name="items")

@@ -3,9 +3,11 @@ from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from orders.models import Order
+from orders.services import create_order_from_cart
 from course.models import Course, Enrollment
 from django.contrib.auth import get_user_model
 from .models import PaymentHistory
+from django.db import transaction
 
 User = get_user_model()
 
@@ -25,15 +27,11 @@ def stripe_webhook(request):
             payload, sig_header, endpoint_secret
         )
     except ValueError as e:
-        # Invalid payload
         return HttpResponse(status=400)
     except stripe.error.SignatureVerificationError as e:
-        # Invalid signature
         return HttpResponse(status=400)
     except Exception as e:
-        # Catch any other unexpected errors during event construction
         return HttpResponse(status=500)
-
 
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
@@ -41,43 +39,44 @@ def stripe_webhook(request):
         session_id = session.get('id')
         payment_intent_id = session.get('payment_intent')
         
-        payment_history = PaymentHistory.objects.filter(stripe_session_id=session_id).first()
-        if not payment_history:
-            return HttpResponse("Payment history record not found.", status=200)
-        
-        if payment_history.payment_status == 'succeeded':
-            return HttpResponse("Payment already processed.", status=200)
+        # Check if the client_reference_id is a valid UUID for a PaymentHistory record
+        try:
+            payment_history_id = client_reference_id
+            payment_history = PaymentHistory.objects.get(id=payment_history_id)
+        except (PaymentHistory.DoesNotExist, ValueError):
+            # Fallback to the old logic for course payments
+            if client_reference_id and client_reference_id.startswith('course:'):
+                course_id = client_reference_id.split(':')[1]
+                try:
+                    payment_history = PaymentHistory.objects.get(stripe_session_id=session_id)
+                    course = payment_history.course
+                    buyer = payment_history.user
+                    if buyer:
+                        enrollment, created = Enrollment.objects.get_or_create(Course=course, EnrolledUser=buyer)
+                except (PaymentHistory.DoesNotExist, Course.DoesNotExist, Exception) as e:
+                    return HttpResponse(f"Error processing course payment: {e}", status=200)
+                return HttpResponse(status=200)
+            
+            return HttpResponse("Client reference ID does not match a valid payment history record.", status=200)
 
-        payment_history.payment_status = 'succeeded'
-        payment_history.stripe_payment_intent_id = payment_intent_id
-        payment_history.save()
+        with transaction.atomic():
+            if payment_history.payment_status == 'succeeded':
+                return HttpResponse("Payment already processed.", status=200)
 
-        if client_reference_id and client_reference_id.startswith('order:'):
-            order_id = client_reference_id.split(':')[1]
-            try:
-                order = Order.objects.get(id=order_id)
-                order.paid = True
-                order.save()
-            except Order.DoesNotExist:
-                return HttpResponse(f"Order {order_id} not found.", status=200)
-            except Exception as e:
-                return HttpResponse(f"Error processing order {order_id}.", status=500)
+            payment_history.payment_status = 'succeeded'
+            payment_history.stripe_payment_intent_id = payment_intent_id
+            payment_history.save()
 
-        elif client_reference_id and client_reference_id.startswith('course:'):
-            course_id = client_reference_id.split(':')[1]
-            try:
-                course = Course.objects.get(CourseID=course_id)
-                buyer = payment_history.user
-                
-                if buyer:
-                    enrollment, created = Enrollment.objects.get_or_create(Course=course, EnrolledUser=buyer)
-                else:
-                    return HttpResponse("Buyer not found.", status=200)
+            user = payment_history.user
+            cart = payment_history.cart
+            address_id = payment_history.address_id
+            coupon_code = payment_history.coupon_code
+            
+            order = create_order_from_cart(user, cart, address_id, coupon_code, Order.PaymentMethod.CREDIT_CARD, is_paid=True)
+            
+            payment_history.order = order
+            payment_history.save()
+            
+            return HttpResponse(status=200)
 
-            except Course.DoesNotExist:
-                return HttpResponse(f"Course {course_id} not found.", status=200)
-            except Exception as e:
-                return HttpResponse(f"Error enrolling course {course_id} for buyer {buyer.email}: {e}")
-    
     return HttpResponse(status=200)
-
