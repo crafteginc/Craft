@@ -286,8 +286,9 @@ def _handle_payment_and_transactions_helper(user, payment_method, final_amount, 
         transactions.objects.create(user=user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=-final_amount)
         transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=final_amount)
         user.save()
-        
+    
     cashback_amount = final_amount * Decimal('0.05')
+    user.Balance += cashback_amount    
     transactions.objects.create(user=user, transaction_type=transactions.TransactionType.CASH_BACK, amount=cashback_amount)
     
 def _update_product_stock_helper(cart_items):
