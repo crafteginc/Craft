@@ -65,22 +65,24 @@ class PaymentViewSet(viewsets.ViewSet):
         }
 
         delivery_fee = totals['delivery_fee'] if totals['delivery_fee'] else Decimal("0.00")
-        sub_total_amount = totals['total_amount'] - totals['discount_amount']
         
-        if sub_total_amount > 0:
+        # Populate line items with cart products
+        for item in cart_items:
             session_data["line_items"].append(
                 {
                     "price_data": {
-                        "unit_amount": int(sub_total_amount * Decimal("100")),
+                        "unit_amount": int(item.Product.UnitPrice * Decimal("100")),
                         "currency": "EGP",
                         "product_data": {
-                            "name": "Order Items",
+                            "name": item.Product.ProductName,
+                            "description": item.Product.ProductDescription,
                         },
                     },
-                    "quantity": 1,
+                    "quantity": item.Quantity,
                 }
             )
 
+        # Add delivery fee as a separate line item if applicable
         if delivery_fee > 0:
             session_data["line_items"].append(
                 {
@@ -89,6 +91,21 @@ class PaymentViewSet(viewsets.ViewSet):
                         "currency": "EGP",
                         "product_data": {
                             "name": "Delivery Fee",
+                        },
+                    },
+                    "quantity": 1,
+                }
+            )
+
+        # Add discount as a negative line item if applicable
+        if totals['discount_amount'] > 0:
+            session_data["line_items"].append(
+                {
+                    "price_data": {
+                        "unit_amount": -int(totals['discount_amount'] * Decimal("100")),
+                        "currency": "EGP",
+                        "product_data": {
+                            "name": "Discount",
                         },
                     },
                     "quantity": 1,
