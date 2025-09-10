@@ -20,6 +20,7 @@ class SimpleProductSerializer(serializers.ModelSerializer):
         if data['images']:
             data['images'] = [data['images'][0]]
         return data
+
 class OrderItemProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     class Meta:
@@ -220,7 +221,7 @@ class OrderListRetrieveSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ("id", "final_amount", "paid", "created_at", "confirmation_code", "order_items")
+        fields = ("id", "final_amount", "paid","status", "created_at", "confirmation_code", "order_items")
 
     def get_confirmation_code(self, obj: Order):
         latest_shipment = obj.shipments.order_by('-id').first()
