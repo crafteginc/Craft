@@ -1,8 +1,7 @@
 from decimal import Decimal
 import stripe
 from django.conf import settings
-from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
+from django.shortcuts import get_object_or_404, redirect
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
@@ -52,9 +51,9 @@ class PaymentViewSet(viewsets.ViewSet):
             coupon_code=coupon_code,
         )
 
-        base_success_url = request.build_absolute_uri(reverse("payment:success"))
-        success_url = f"{base_success_url}?session_id={{CHECKOUT_SESSION_ID}}"
-        cancel_url = request.build_absolute_uri(reverse("payment:cancel"))
+        # Use the deep links provided by Flutter
+        success_url = f"crafterapp://payment/success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = "crafterapp://payment/failure"
 
         session_data = {
             "mode": "payment",
@@ -148,9 +147,9 @@ class CoursePaymentViewSet(viewsets.ViewSet):
             payment_status='pending'
         )
 
-        base_success_url = request.build_absolute_uri(reverse("payment:success"))
-        success_url = f"{base_success_url}?session_id={{CHECKOUT_SESSION_ID}}"
-        cancel_url = request.build_absolute_uri(reverse("payment:cancel"))
+        # Use the deep links provided by Flutter
+        success_url = f"crafterapp://payment/success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = "crafterapp://payment/failure"
 
         session_data = {
             "mode": "payment",
@@ -183,25 +182,20 @@ class CoursePaymentViewSet(viewsets.ViewSet):
 def payment_completed(request):
     """
     Endpoint for successful payment redirect.
-    Renders a success page for the user.
+    Redirects to the app's deep link.
     """
     session_id = request.GET.get('session_id')
-    context = {
-        "status": "success",
-        "message": "Payment Successful!",
-        "session_id": session_id
-    }
-    return render(request, 'payment/payment_result.html', context)
+    
+    # Redirect to the deep link with the session_id
+    deep_link = f"crafterapp://payment/success?session_id={session_id}"
+    return redirect(deep_link)
 
 @api_view(['GET'])
 def payment_canceled(request):
     """
     Endpoint for canceled payment redirect.
-    Renders a failure page for the user.
+    Redirects to the app's deep link.
     """
-    context = {
-        "status": "failed",
-        "message": "Payment Canceled",
-        "session_id": None
-    }
-    return render(request, 'payment/payment_result.html', context)
+    # Redirect to the deep link for cancellation
+    deep_link = "crafterapp://payment/failure"
+    return redirect(deep_link)
