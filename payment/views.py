@@ -1,15 +1,15 @@
 from decimal import Decimal
 import stripe
 from django.conf import settings
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-from orders.models import  Cart, CartItems
+from orders.models import Cart, CartItems
 from course.models import Course, Enrollment
-from .serializers import  CourseInformationSerializer
+from .serializers import CourseInformationSerializer
 from .models import PaymentHistory
 from orders.services import _calculate_all_order_totals_helper
 from accounts.models import Address
@@ -28,15 +28,15 @@ class PaymentViewSet(viewsets.ViewSet):
         cart = get_object_or_404(Cart, User=user)
         address_id = request.data.get("address_id")
         coupon_code = request.data.get("coupon_code")
-        
+
         # Retrieve the Address instance using the ID
         try:
             address = Address.objects.get(user=user, id=address_id)
         except Address.DoesNotExist:
             raise ValidationError("Address not found or does not belong to the user.")
-        
+
         cart_items = CartItems.objects.filter(CartID=cart)
-        
+
         if not cart_items.exists():
             raise ValidationError({"message": "Cart is empty. Cannot create order."})
 
@@ -44,15 +44,14 @@ class PaymentViewSet(viewsets.ViewSet):
         totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, user)
 
         # Create a pending PaymentHistory record before creating the session
-        # Pass the Address object instance to the 'address_id' foreign key field
         payment_history = PaymentHistory.objects.create(
             user=user,
             cart=cart,
             payment_status='pending',
-            address_id=address,  # Corrected: Pass the `address` object
+            address_id=address,
             coupon_code=coupon_code,
         )
-        
+
         base_success_url = request.build_absolute_uri(reverse("payment:success"))
         success_url = f"{base_success_url}?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = request.build_absolute_uri(reverse("payment:cancel"))
@@ -75,7 +74,7 @@ class PaymentViewSet(viewsets.ViewSet):
                         "unit_amount": int(sub_total_amount * Decimal("100")),
                         "currency": "EGP",
                         "product_data": {
-                            "name": f"Order Items",
+                            "name": "Order Items",
                         },
                     },
                     "quantity": 1,
@@ -134,7 +133,6 @@ class CoursePaymentViewSet(viewsets.ViewSet):
 
         base_success_url = request.build_absolute_uri(reverse("payment:success"))
         success_url = f"{base_success_url}?session_id={{CHECKOUT_SESSION_ID}}"
-
         cancel_url = request.build_absolute_uri(reverse("payment:cancel"))
 
         session_data = {
@@ -168,27 +166,25 @@ class CoursePaymentViewSet(viewsets.ViewSet):
 def payment_completed(request):
     """
     Endpoint for successful payment redirect.
-    It's recommended to handle post-payment logic in the webhook.
+    Renders a success page for the user.
     """
     session_id = request.GET.get('session_id')
-    if not session_id:
-        return Response("Session ID not provided.", status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        session = stripe.checkout.Session.retrieve(session_id)
-        return Response({
-            "message": "Payment accepted, processing...",
-            "session_id": session.id
-        }, status=status.HTTP_202_ACCEPTED)
-    except stripe.error.StripeError:
-        return Response("Invalid session ID.", status=status.HTTP_400_BAD_REQUEST)
+    context = {
+        "status": "success",
+        "message": "Payment Successful!",
+        "session_id": session_id
+    }
+    return render(request, 'payment/payment_result.html', context)
 
 @api_view(['GET'])
 def payment_canceled(request):
     """
     Endpoint for canceled payment redirect.
+    Renders a failure page for the user.
     """
-    return Response(
-        {"message": "Your payment was canceled."}, 
-        status=status.HTTP_406_NOT_ACCEPTABLE
-    )
+    context = {
+        "status": "failed",
+        "message": "Payment Canceled",
+        "session_id": None
+    }
+    return render(request, 'payment/payment_result.html', context)
