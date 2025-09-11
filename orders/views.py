@@ -153,16 +153,7 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsSupplier], url_path='orders-for-me')
-    def list_supplier_orders(self, request):
-        """
-        Lists all sales orders (orders from the supplier's customers).
-        """
-        queryset = self.get_queryset().filter(shipments__supplier=request.user.supplier).distinct()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsSupplier], url_path='orders-for-me-details')
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsSupplier], url_path='supplier-orders-details')
     def retrieve_supplier_order(self, request, pk=None):
         """
         Retrieves a single sales order for the authenticated supplier.
