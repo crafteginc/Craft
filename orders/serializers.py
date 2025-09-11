@@ -179,7 +179,7 @@ class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OrderItem
-        fields = ("id", "product", "quantity", "price", "cost")
+        fields = ("product", "quantity", "price", "cost")
 
     def get_cost(self, obj: OrderItem):
         return obj.get_cost()
@@ -215,7 +215,12 @@ class ShipmentSerializer(serializers.ModelSerializer):
             data.pop('confirmation_code')
         return data
 
-class OrderListRetrieveSerializer(serializers.ModelSerializer):
+class OrderSimpleListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ["id", "created_at", "paid", "status", "final_amount"]
+
+class OrderRetrieveSerializer(serializers.ModelSerializer):
     confirmation_code = serializers.SerializerMethodField()
     order_items = OrderItemListRetrieveSerializer(many=True, source='items')
 
@@ -228,11 +233,6 @@ class OrderListRetrieveSerializer(serializers.ModelSerializer):
         if latest_shipment and self.context.get('request').user == obj.user:
             return latest_shipment.confirmation_code
         return None
-
-class SupplierOrderListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Order
-        fields = ("id", "created_at", "paid", "status", "final_amount")
 
 class SupplierOrderRetrieveSerializer(serializers.ModelSerializer):
     order_items = OrderItemListRetrieveSerializer(many=True, source='items')

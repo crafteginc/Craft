@@ -11,21 +11,18 @@ from django.core.validators import MinValueValidator
 
 class OrderManager(models.Manager):
     def for_delivery_person(self, user):
-        """Returns shipments relevant to a specific delivery person."""
-        try:
-            return self.filter(
-                Q(shipments__from_state=user.delivery.governorate) &
-                (Q(shipments__delivery_person=user) | Q(shipments__delivery_person__isnull=True)) &
-                ~Q(shipments__status__in=[
-                    Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY,
-                    Shipment.ShipmentStatus.ON_MY_WAY,
-                    Shipment.ShipmentStatus.DELIVERED_TO_First_WAREHOUSE,
-                    Shipment.ShipmentStatus.CANCELLED,
-                    Shipment.ShipmentStatus.In_Transmit
-                ])
-            )
-        except Delivery.DoesNotExist:
-            return self.none()
+        # ... (same as before)
+        return self.filter(
+            Q(shipments__from_state=user.delivery.governorate) &
+            (Q(shipments__delivery_person=user) | Q(shipments__delivery_person__isnull=True)) &
+            ~Q(shipments__status__in=[
+                Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY,
+                Shipment.ShipmentStatus.ON_MY_WAY,
+                Shipment.ShipmentStatus.DELIVERED_TO_First_WAREHOUSE,
+                Shipment.ShipmentStatus.CANCELLED,
+                Shipment.ShipmentStatus.In_Transmit
+            ])
+        )
 
     def for_customer(self, user):
         """Returns orders for a specific customer, excluding certain statuses."""
@@ -34,11 +31,15 @@ class OrderManager(models.Manager):
         )
 
     def for_supplier(self, user):
-        """Returns orders for a specific supplier, excluding certain statuses."""
+        """Returns orders for a specific supplier (their sales)."""
         return self.filter(shipments__supplier=user.supplier)
 
+    def for_supplier_as_customer(self, user):
+        """Returns orders where the supplier is the customer (their purchases)."""
+        return self.filter(user=user)
+
     def for_delivery(self, user):
-        """Returns orders for a specific delivery profile."""
+        # ... (same as before)
         return self.filter(shipments__delivery_person=user)
 
 class Wishlist(models.Model):

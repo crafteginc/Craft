@@ -1,4 +1,4 @@
-from .models import CartItems, Cart, Order, OrderItem, Warehouse, Shipment, ShipmentItem, Coupon, CouponUsage
+from .models import CartItems, Cart, Order,Warehouse, Shipment, Coupon
 from .serializers import *
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -10,15 +10,15 @@ from rest_framework import mixins, status, viewsets, generics
 from rest_framework.permissions import IsAuthenticated
 from accounts.models import Address, Delivery
 from products.models import Product
+from products.views import StandardResultsSetPagination
 from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework.decorators import action
-from django.core.exceptions import ObjectDoesNotExist
+from django_filters.rest_framework import DjangoFilterBackend
 from returnrequest.models import transactions
 from .permissions import DeliveryContractProvided, IsSupplier
 from .services import get_craft_user_by_email, get_warehouse_by_name, create_order_from_cart, _calculate_all_order_totals_helper
 from decimal import Decimal
-from collections import defaultdict
 import datetime
 from django.db.models import F
 
@@ -115,15 +115,147 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
     serializer_class = OrderCreateSerializer
     queryset = Order.objects.all()
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
             if hasattr(user, 'delivery'):
                 return Order.objects.for_delivery_person(user)
+            if hasattr(user, 'supplier'):
+                return Order.objects.for_customer(user) 
             return Order.objects.for_customer(user)
         return Order.objects.none()
 
+    def get_serializer_class(self):
+        # Use a simple list serializer for the list action.
+        if self.action == "list":
+            return OrderSimpleListSerializer
+        # Use the detailed serializer for the retrieve action.
+        if self.action == "retrieve":
+            return OrderRetrieveSerializer
+        # Handle supplier-specific views.
+        if self.action == "retrieve_supplier_order":
+            return SupplierOrderRetrieveSerializer
+        if self.action in ["list_completed_supplier_orders", "list_uncompleted_supplier_orders"]:
+            return OrderSimpleListSerializer
+        # Use the create serializer for the create action.
+        return OrderCreateSerializer
+
+    def list(self, request, *args, **kwargs):
+        """
+        Lists orders for the authenticated customer or a supplier acting as a customer.
+        """
+        if hasattr(request.user, 'delivery'):
+            return Response({"message": "This endpoint is for customers. Please use the delivery-specific endpoints."}, status=status.HTTP_403_FORBIDDEN)
+            
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsSupplier], url_path='orders-for-me')
+    def list_supplier_orders(self, request):
+        """
+        Lists all sales orders (orders from the supplier's customers).
+        """
+        queryset = self.get_queryset().filter(shipments__supplier=request.user.supplier).distinct()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsSupplier], url_path='orders-for-me-details')
+    def retrieve_supplier_order(self, request, pk=None):
+        """
+        Retrieves a single sales order for the authenticated supplier.
+        """
+        try:
+            order = self.get_queryset().get(pk=pk)
+            serializer = self.get_serializer(order)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Order.DoesNotExist:
+            return Response({"message": "Order not found or you don't have permission to view it."}, status=status.HTTP_404_NOT_FOUND)
+            
+    @action(detail=True, methods=['post'], url_path='ready-to-ship', permission_classes=[IsAuthenticated, IsSupplier])
+    def ready_to_ship(self, request, pk=None):
+        """
+        Allows a supplier to mark a shipment as "ready to ship."
+        """
+        user = request.user
+        try:
+            shipment = Shipment.objects.get(
+                order__pk=pk, 
+                supplier=user.supplier,
+                status=Shipment.ShipmentStatus.CREATED
+            )
+        except Shipment.DoesNotExist:
+            return Response({"message": "Shipment not found or is not in a 'created' state."}, status=status.HTTP_404_NOT_FOUND)
+
+        with transaction.atomic():
+            shipment.status = Shipment.ShipmentStatus.READY_TO_SHIP
+            shipment.save()
+            shipment.order.status = Order.OrderStatus.READY_TO_SHIP
+            shipment.order.save()
+        
+        return Response({"message": f"Shipment for order {pk} is now ready to ship."}, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], url_path='completed-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
+    def list_completed_supplier_orders(self, request):
+        """
+        Lists all successfully delivered sales orders for a supplier.
+        """
+        queryset = self.get_queryset().filter(
+            shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
+        ).distinct()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='uncompleted-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
+    def list_uncompleted_supplier_orders(self, request):
+        """
+        Lists all uncompleted sales orders for a supplier.
+        """
+        queryset = self.get_queryset().exclude(
+            shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
+        ).distinct()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel_order_by_user(self, request, pk=None):
+        """
+        Allows a customer to cancel an order.
+        """
+        try:
+            order = Order.objects.get(pk=pk, user=request.user)
+            
+            if order.status in [Order.OrderStatus.CREATED, Order.OrderStatus.In_Transmit]:
+                with transaction.atomic():
+                    order.status = Order.OrderStatus.CANCELLED
+                    order.save()
+                    
+                    cashback_amount = order.final_amount * Decimal('0.05')
+                    user = request.user
+                    
+                    if order.payment_method == Order.PaymentMethod.BALANCE:
+                        user.Balance += order.final_amount
+                        user.Balance -= cashback_amount
+                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.CASH_BACK, amount=-cashback_amount)
+                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_PRODUCT, amount=order.final_amount)
+                    elif order.payment_method == Order.PaymentMethod.CREDIT_CARD and order.paid:
+                        user.Balance += order.final_amount
+                        user.Balance -= cashback_amount
+                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_CASH_BACK, amount=-cashback_amount)
+                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_PRODUCT, amount=order.final_amount)
+                    elif order.payment_method == Order.PaymentMethod.CASH_ON_DELIVERY:
+                        user.Balance -= cashback_amount
+                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_CASH_BACK, amount=-cashback_amount)
+
+                return Response({"message": "Order has been cancelled."}, status=status.HTTP_200_OK)
+            else:
+                return Response({"message": "Cannot cancel an order that has been delivered or marked as failed delivery."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Order.DoesNotExist:
+            return Response({"message": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+    
     @action(detail=False, methods=['post'], url_path='calculate-totals')
     def calculate_totals(self, request, *args, **kwargs):
         cart = Cart.objects.get(User=request.user)
@@ -183,51 +315,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             "final_amount": order.final_amount
         }, status=status.HTTP_201_CREATED)
 
-    @action(detail=False, methods=['get'], url_path='orders-for-me', permission_classes=[IsAuthenticated, IsSupplier])
-    def orders_for_me(self, request):
-        """
-        Retrieves a simplified list of orders for the current supplier.
-        """
-        user = request.user
-        queryset = Order.objects.filter(items__product__Supplier=user.supplier).distinct().order_by('-created_at')
-        serializer = SupplierOrderListSerializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    @action(detail=True, methods=['get'], url_path='orders-for-me-details', permission_classes=[IsAuthenticated, IsSupplier])
-    def retrieve_supplier_order(self, request, pk=None):
-
-        user = request.user
-        try:
-            order = Order.objects.get(pk=pk, items__product__Supplier=user.supplier)
-        except Order.DoesNotExist:
-            return Response({"message": "Order not found or you don't have permission to view it."}, status=status.HTTP_404_NOT_FOUND)
-        
-        serializer = SupplierOrderRetrieveSerializer(order)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'], url_path='ready-to-ship', permission_classes=[IsAuthenticated, IsSupplier])
-    def ready_to_ship(self, request, pk=None):
-        """
-        Allows a supplier to mark a shipment as "ready to ship."
-        """
-        user = request.user
-        try:
-            shipment = Shipment.objects.get(
-                order__pk=pk, 
-                supplier=user.supplier,
-                status=Shipment.ShipmentStatus.CREATED
-            )
-        except Shipment.DoesNotExist:
-            return Response({"message": "Shipment not found or is not in a 'created' state."}, status=status.HTTP_404_NOT_FOUND)
-
-        with transaction.atomic():
-            shipment.status = Shipment.ShipmentStatus.READY_TO_SHIP
-            shipment.save()
-            shipment.order.status = Order.OrderStatus.READY_TO_SHIP
-            shipment.order.save()
-        
-        return Response({"message": f"Shipment for order {pk} is now ready to ship."}, status=status.HTTP_200_OK)
-
     def _validate_request_data(self, cart, address_id, payment_method):
         if not address_id:
             raise ValidationError({"message": "Address ID is required."})
@@ -265,48 +352,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
                 "message": f"Your order with ID {order_id} has been created."
             }
         )
-
-    def get_serializer_class(self):
-        if self.action in ["list", "retrieve"]:
-            return OrderListRetrieveSerializer
-        return self.serializer_class
-    
-    @action(detail=True, methods=['post'], url_path='cancel', url_name='cancel-order')
-    def cancel_order(self, request, pk=None):
-        try:
-            user = request.user
-            order = Order.objects.get(pk=pk, user=user)
-            
-            if order.user != request.user:
-                return Response({"message": "You do not have permission to cancel this order."}, status=status.HTTP_403_FORBIDDEN)
-        
-            if order.status in [Order.OrderStatus.CREATED, Order.OrderStatus.In_Transmit]:
-                with transaction.atomic():
-                    order.status = Order.OrderStatus.CANCELLED
-                    order.save()
-                    
-                    cashback_amount = order.final_amount * Decimal('0.05')
-                    
-                    if order.payment_method == Order.PaymentMethod.BALANCE:
-                        user.Balance += order.final_amount
-                        user.Balance -= cashback_amount
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.CASH_BACK, amount=-cashback_amount)
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_PRODUCT, amount=order.final_amount)
-                    elif order.payment_method == Order.PaymentMethod.CREDIT_CARD and order.paid:
-                        user.Balance += order.final_amount
-                        user.Balance -= cashback_amount
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_CASH_BACK, amount=-cashback_amount)
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_PRODUCT, amount=order.final_amount)
-                    elif order.payment_method == Order.PaymentMethod.CASH_ON_DELIVERY:
-                        user.Balance -= cashback_amount
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_CASH_BACK, amount=-cashback_amount)
-                
-                return Response({"message": "Order has been cancelled."}, status=status.HTTP_200_OK)
-            else:
-                return Response({"message": "Cannot cancel an order that has been delivered or marked as failed delivery."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        except Order.DoesNotExist:
-            return Response({"message": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = ShipmentSerializer
@@ -401,16 +446,6 @@ class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
             transactions.objects.create(user=shipment.supplier.user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
             transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
             transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
-
-class OrdersHistoryViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    serializer_class = OrderListRetrieveSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            return Order.objects.filter(user=user).order_by('-created_at')
-        return Order.objects.none()
 
 class ReturnOrdersProductsViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = ReturnRequestListRetrieveSerializer  
