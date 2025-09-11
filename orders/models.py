@@ -97,7 +97,7 @@ class Order(models.Model):
         BALANCE = 'Balance'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    order_number = models.CharField(max_length=10, unique=True, db_index=True)
+    order_number = models.CharField(max_length=20, unique=True, db_index=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     address = models.ForeignKey(Address, on_delete=models.CASCADE )
     payment_method = models.CharField(max_length=50, choices=PaymentMethod.choices, default=PaymentMethod.CASH_ON_DELIVERY)
@@ -113,22 +113,24 @@ class Order(models.Model):
     objects = OrderManager()
 
     def __str__(self):
-        return f"Order ID: {self.id} for {self.user.email}"
-    
+        return f"Order ID: {self.order_number} for {self.user.email}"
+
+    def generate_order_number(self):
+        prefix = '20'
+        while True:
+            unique_part = ''.join(random.choices(string.digits, k=10))
+            order_number = prefix + unique_part
+            if not Order.objects.filter(order_number=order_number).exists():
+                return order_number
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["user", "created_at"])]
 
-def generate_order_number():
-    while True:
-        order_number = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
-        if not Order.objects.filter(order_number=order_number).exists():
-            return order_number
-
 @receiver(pre_save, sender=Order)
-def pre_save_order(sender, instance, **kwargs):
+def set_order_number(sender, instance, **kwargs):
     if not instance.order_number:
-        instance.order_number = generate_order_number()
+        instance.order_number = instance.generate_order_number()
 
 class Shipment(models.Model):
     class ShipmentStatus(models.TextChoices):

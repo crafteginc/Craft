@@ -295,6 +295,7 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         return Response({
             "message": "Order Created Successfully",
             "order_id": str(order.id),
+            "order_number":order.order_number,
             "Total amount": order.total_amount,
             "Discount amount": order.discount_amount,
             "Deliverey Fee": order.delivery_fee,

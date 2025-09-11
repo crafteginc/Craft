@@ -27,7 +27,7 @@ class CartItemsAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'created_at', 'total_amount', 'paid')
+    list_display = ('order_number', 'user', 'created_at', 'total_amount', 'paid')
     search_fields = ('user__email', 'user__first_name', 'user__last_name')
     list_filter = ('created_at', 'paid')
     ordering = ('-created_at',)

@@ -218,7 +218,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
 class OrderSimpleListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ["order_number", "created_at", "paid", "status", "final_amount"]
+        fields = ["id","order_number", "created_at", "paid", "status", "final_amount"]
 
 class OrderRetrieveSerializer(serializers.ModelSerializer):
     confirmation_code = serializers.SerializerMethodField()
