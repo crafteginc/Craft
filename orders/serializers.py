@@ -218,7 +218,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
 class OrderSimpleListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ["id", "created_at", "paid", "status", "final_amount"]
+        fields = ["order_number", "created_at", "paid", "status", "final_amount"]
 
 class OrderRetrieveSerializer(serializers.ModelSerializer):
     confirmation_code = serializers.SerializerMethodField()
@@ -226,7 +226,7 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ("id", "final_amount", "paid","status", "created_at", "confirmation_code", "order_items")
+        fields = ("id", "order_number", "final_amount", "paid","status", "created_at", "confirmation_code", "order_items")
 
     def get_confirmation_code(self, obj: Order):
         latest_shipment = obj.shipments.order_by('-id').first()
@@ -243,7 +243,7 @@ class SupplierOrderRetrieveSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = (
-            "id", "user", "order_items", "address", "payment_method",
+            "id", "order_number", "user", "order_items", "address", "payment_method",
             "total_amount", "discount_amount", "delivery_fee", "final_amount", "status"
         )        
 

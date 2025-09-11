@@ -3,24 +3,20 @@ from .serializers import *
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.exceptions import ValidationError
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.db import transaction
 from rest_framework import mixins, status, viewsets, generics
 from rest_framework.permissions import IsAuthenticated
-from accounts.models import Address, Delivery
+from accounts.models import Address
 from products.models import Product
 from products.views import StandardResultsSetPagination
-from django.db.models import F, Q
+from django.db.models import  Q
 from django.utils import timezone
 from rest_framework.decorators import action
-from django_filters.rest_framework import DjangoFilterBackend
 from returnrequest.models import transactions
 from .permissions import DeliveryContractProvided, IsSupplier
-from .services import get_craft_user_by_email, get_warehouse_by_name, create_order_from_cart, _calculate_all_order_totals_helper
+from .services import get_craft_user_by_email, get_warehouse_by_name, create_order_from_cart, _calculate_all_order_totals_helper, _validate_request_data, _validate_cart_stock, _update_product_stock_helper, _send_order_notification, _process_payments
 from decimal import Decimal
 import datetime
-from django.db.models import F
 
 class WishlistViewSet(viewsets.ModelViewSet):
     queryset = Wishlist.objects.all()
@@ -122,14 +118,14 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         if user.is_authenticated:
             if hasattr(user, 'delivery'):
                 return Order.objects.for_delivery_person(user)
-            if hasattr(user, 'supplier'):
-                return Order.objects.for_customer(user) 
+            # This is the original logic. We will handle supplier-as-customer in a separate action.
             return Order.objects.for_customer(user)
         return Order.objects.none()
 
+
     def get_serializer_class(self):
         # Use a simple list serializer for the list action.
-        if self.action == "list":
+        if self.action in ["list","list_completed_supplier_orders","list_uncompleted_supplier_orders"]:
             return OrderSimpleListSerializer
         # Use the detailed serializer for the retrieve action.
         if self.action == "retrieve":
@@ -137,29 +133,50 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         # Handle supplier-specific views.
         if self.action == "retrieve_supplier_order":
             return SupplierOrderRetrieveSerializer
-        if self.action in ["list_completed_supplier_orders", "list_uncompleted_supplier_orders"]:
+        if self.action in ["for_supplier", "for_supplier_as_customer"]:
             return OrderSimpleListSerializer
         # Use the create serializer for the create action.
         return OrderCreateSerializer
 
-    def list(self, request, *args, **kwargs):
-        """
-        Lists orders for the authenticated customer or a supplier acting as a customer.
-        """
-        if hasattr(request.user, 'delivery'):
-            return Response({"message": "This endpoint is for customers. Please use the delivery-specific endpoints."}, status=status.HTTP_403_FORBIDDEN)
+    @action(detail=False, methods=['get'], url_path='completed-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
+    def list_completed_supplier_orders(self, request):
+        user = self.request.user
+        queryset = Order.objects.for_supplier(user).filter(
+            shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
+        ).distinct().order_by('-created_at')
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
             
-        queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], url_path='uncompleted-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
+    def list_uncompleted_supplier_orders(self, request):
+        """
+        Lists all uncompleted sales orders for a supplier.
+        """
+        queryset = Order.objects.for_supplier(request.user).exclude(
+            shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
+        ).distinct().order_by('-created_at')
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+            
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsSupplier], url_path='supplier-orders-details')
     def retrieve_supplier_order(self, request, pk=None):
         """
         Retrieves a single sales order for the authenticated supplier.
         """
         try:
-            order = self.get_queryset().get(pk=pk)
+            order = Order.objects.for_supplier(request.user).filter(pk=pk).first()
             serializer = self.get_serializer(order)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
@@ -187,28 +204,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             shipment.order.save()
         
         return Response({"message": f"Shipment for order {pk} is now ready to ship."}, status=status.HTTP_200_OK)
-    
-    @action(detail=False, methods=['get'], url_path='completed-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
-    def list_completed_supplier_orders(self, request):
-        """
-        Lists all successfully delivered sales orders for a supplier.
-        """
-        queryset = self.get_queryset().filter(
-            shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
-        ).distinct()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=['get'], url_path='uncompleted-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
-    def list_uncompleted_supplier_orders(self, request):
-        """
-        Lists all uncompleted sales orders for a supplier.
-        """
-        queryset = self.get_queryset().exclude(
-            shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
-        ).distinct()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel_order_by_user(self, request, pk=None):
@@ -254,13 +249,13 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         coupon_code = request.data.get("coupon_code")
         
         payment_method = ""
-        self._validate_request_data(cart, address_id, payment_method)
+        _validate_request_data(cart, address_id, payment_method)
         address = Address.objects.filter(user=request.user, id=address_id).first()
         if not address:
             raise ValidationError("Address not found or does not belong to the user.")
 
         cart_items = CartItems.objects.filter(CartID=cart)
-        self._validate_cart_stock(cart_items)
+        _validate_cart_stock(cart_items)
 
         totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, request.user)
 
@@ -278,11 +273,11 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         coupon_code = request.data.get("coupon_code")
         payment_method = request.data.get("payment_method", "").strip()
 
-        self._validate_request_data(cart, address_id, payment_method)
+        _validate_request_data(cart, address_id, payment_method)
         address = Address.objects.filter(user=request.user, id=address_id).first()
         cart_items = CartItems.objects.filter(CartID=cart)
         
-        self._validate_cart_stock(cart_items)
+        _validate_cart_stock(cart_items)
 
         if payment_method == Order.PaymentMethod.CREDIT_CARD:
             return Response({
@@ -305,44 +300,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             "Deliverey Fee": order.delivery_fee,
             "final_amount": order.final_amount
         }, status=status.HTTP_201_CREATED)
-
-    def _validate_request_data(self, cart, address_id, payment_method):
-        if not address_id:
-            raise ValidationError({"message": "Address ID is required."})
-        if cart.items.count() == 0:
-            raise ValidationError({"message": "Cart is empty. Cannot create order."})
-        if payment_method and payment_method not in Order.PaymentMethod.values:
-            raise ValidationError({"message": "Invalid or missing payment method."})
-
-    def _validate_cart_stock(self, cart_items):
-        for item in cart_items:
-            if item.Quantity > item.Product.Stock:
-                raise ValidationError({"message": f"Quantity of {item.Product.ProductName} exceeds available stock."})
-    
-    def _get_supplier_addresses(self, cart_items):
-        supplier_addresses = {}
-        supplier_ids = {item.Product.Supplier.user.id for item in cart_items}
-        for supplier_id in supplier_ids:
-            addresses = Address.objects.filter(user=supplier_id)
-            if not addresses.exists() or addresses.count() > 1:
-                raise ValidationError({"message": f"Address not found or multiple addresses found for supplier with ID {supplier_id}."})
-            supplier_addresses[supplier_id] = addresses.first()
-        return supplier_addresses
-
-    def _update_product_stock(self, cart_items):
-        for item in cart_items:
-            item.Product.Stock = F('Stock') - item.Quantity
-            item.Product.save(update_fields=['Stock'])
-
-    def _send_order_notification(self, user, order_id):
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"user_{user.id}",
-            {
-                "type": "send_notification",
-                "message": f"Your order with ID {order_id} has been created."
-            }
-        )
 
 class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = ShipmentSerializer
@@ -402,41 +359,9 @@ class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
                 order.status = Order.OrderStatus.DELIVERED_SUCCESSFULLY
                 order.save()
             
-            self._process_payments(request.user, shipment, warehouse)
+            _process_payments(request.user, shipment, warehouse)
         
         return Response({'message': 'Shipment status updated to delivered successfully'}, status=status.HTTP_200_OK)
-
-    def _process_payments(self, user, shipment, warehouse):
-        Craft = get_craft_user_by_email("CraftEG@craft.com")
-        delivery_fee_share = warehouse.delivery_fee * Decimal('0.85')
-        craft_delivery_cut = warehouse.delivery_fee * Decimal('0.15')
-        
-        order_items = shipment.items.all()
-        supplier_total = sum(item.order_item.price * item.order_item.quantity for item in order_items)
-        
-        supplier_revenue = supplier_total * Decimal('0.85')
-        craft_supplier_cut = supplier_total * Decimal('0.15')
-
-        if shipment.order.payment_method in [Order.PaymentMethod.BALANCE, Order.PaymentMethod.CREDIT_CARD]:
-            user.Balance += delivery_fee_share
-            Craft.Balance += craft_delivery_cut
-            transactions.objects.create(user=user, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=delivery_fee_share)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
-
-            shipment.supplier.user.Balance += supplier_revenue
-            Craft.Balance += craft_supplier_cut
-            transactions.objects.create(user=shipment.supplier.user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
-                
-        elif shipment.order.payment_method == Order.PaymentMethod.CASH_ON_DELIVERY:
-            user.Balance -= (supplier_total + warehouse.delivery_fee)
-            shipment.supplier.user.Balance += supplier_revenue
-            Craft.Balance += craft_supplier_cut + craft_delivery_cut
-            
-            transactions.objects.create(user=user, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=-(supplier_total + warehouse.delivery_fee))
-            transactions.objects.create(user=shipment.supplier.user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
 
 class ReturnOrdersProductsViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = ReturnRequestListRetrieveSerializer  

@@ -8,6 +8,8 @@ from .models import Order,Warehouse, CartItems, OrderItem, Shipment, ShipmentIte
 from decimal import Decimal
 from collections import defaultdict
 from returnrequest.models import transactions
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 
 def get_craft_user_by_email(email="CraftEG@craft.com"):
@@ -160,7 +162,7 @@ def create_order_from_cart(user, cart, address_id, coupon_code, payment_method, 
         
         _update_product_stock_helper(cart_items)
         cart_items.delete()
-        # _send_order_notification(user, order.id)
+        _send_order_notification(user, order.id)
 
         if coupon_code:
             try:
@@ -274,6 +276,38 @@ def _get_supplier_addresses_helper(cart_items, user):
         supplier_addresses[supplier_id] = addresses.first()
     return supplier_addresses
 
+def _process_payments(user, shipment, warehouse):
+        Craft = get_craft_user_by_email("CraftEG@craft.com")
+        delivery_fee_share = warehouse.delivery_fee * Decimal('0.85')
+        craft_delivery_cut = warehouse.delivery_fee * Decimal('0.15')
+        
+        order_items = shipment.items.all()
+        supplier_total = sum(item.order_item.price * item.order_item.quantity for item in order_items)
+        
+        supplier_revenue = supplier_total * Decimal('0.85')
+        craft_supplier_cut = supplier_total * Decimal('0.15')
+
+        if shipment.order.payment_method in [Order.PaymentMethod.BALANCE, Order.PaymentMethod.CREDIT_CARD]:
+            user.Balance += delivery_fee_share
+            Craft.Balance += craft_delivery_cut
+            transactions.objects.create(user=user, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=delivery_fee_share)
+            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
+
+            shipment.supplier.user.Balance += supplier_revenue
+            Craft.Balance += craft_supplier_cut
+            transactions.objects.create(user=shipment.supplier.user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
+            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
+                
+        elif shipment.order.payment_method == Order.PaymentMethod.CASH_ON_DELIVERY:
+            user.Balance -= (supplier_total + warehouse.delivery_fee)
+            shipment.supplier.user.Balance += supplier_revenue
+            Craft.Balance += craft_supplier_cut + craft_delivery_cut
+            
+            transactions.objects.create(user=user, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=-(supplier_total + warehouse.delivery_fee))
+            transactions.objects.create(user=shipment.supplier.user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
+            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
+            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
+
 def _handle_payment_and_transactions_helper(user, payment_method, final_amount, is_paid=False):
     Craft = get_craft_user_by_email("CraftEG@craft.com")
     if payment_method == Order.PaymentMethod.BALANCE:
@@ -294,3 +328,41 @@ def _update_product_stock_helper(cart_items):
     for item in cart_items:
         item.Product.Stock = F('Stock') - item.Quantity
         item.Product.save(update_fields=['Stock'])
+
+def _validate_request_data(cart, address_id, payment_method):
+        if not address_id:
+            raise ValidationError({"message": "Address ID is required."})
+        if cart.items.count() == 0:
+            raise ValidationError({"message": "Cart is empty. Cannot create order."})
+        if payment_method and payment_method not in Order.PaymentMethod.values:
+            raise ValidationError({"message": "Invalid or missing payment method."})
+
+def _validate_cart_stock(cart_items):
+        for item in cart_items:
+            if item.Quantity > item.Product.Stock:
+                raise ValidationError({"message": f"Quantity of {item.Product.ProductName} exceeds available stock."})
+    
+def _get_supplier_addresses(cart_items):
+        supplier_addresses = {}
+        supplier_ids = {item.Product.Supplier.user.id for item in cart_items}
+        for supplier_id in supplier_ids:
+            addresses = Address.objects.filter(user=supplier_id)
+            if not addresses.exists() or addresses.count() > 1:
+                raise ValidationError({"message": f"Address not found or multiple addresses found for supplier with ID {supplier_id}."})
+            supplier_addresses[supplier_id] = addresses.first()
+        return supplier_addresses
+
+def _update_product_stock(cart_items):
+        for item in cart_items:
+            item.Product.Stock = F('Stock') - item.Quantity
+            item.Product.save(update_fields=['Stock'])
+
+def _send_order_notification(user, order_id):
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"user_{user.id}",
+            {
+                "type": "send_notification",
+                "message": f"Your order with ID {order_id} has been created."
+            }
+        )

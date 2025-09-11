@@ -8,6 +8,8 @@ from django.db.models import Q
 import random
 import string
 from django.core.validators import MinValueValidator
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 
 class OrderManager(models.Manager):
     def for_delivery_person(self, user):
@@ -95,6 +97,7 @@ class Order(models.Model):
         BALANCE = 'Balance'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order_number = models.CharField(max_length=10, unique=True, db_index=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     address = models.ForeignKey(Address, on_delete=models.CASCADE )
     payment_method = models.CharField(max_length=50, choices=PaymentMethod.choices, default=PaymentMethod.CASH_ON_DELIVERY)
@@ -111,10 +114,21 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order ID: {self.id} for {self.user.email}"
-
+    
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["user", "created_at"])]
+
+def generate_order_number():
+    while True:
+        order_number = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+        if not Order.objects.filter(order_number=order_number).exists():
+            return order_number
+
+@receiver(pre_save, sender=Order)
+def pre_save_order(sender, instance, **kwargs):
+    if not instance.order_number:
+        instance.order_number = generate_order_number()
 
 class Shipment(models.Model):
     class ShipmentStatus(models.TextChoices):
