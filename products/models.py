@@ -95,6 +95,14 @@ class ProSizes(models.Model):
     def __str__(self):
         return self.product.ProductName
 
+class Posters(models.Model):
+    name = models.CharField(max_length=100)
+    image_link = models.ImageField(upload_to="posters_images/%y/%m/%d")
+    redierct_link = models.CharField(max_length=200,blank=True,null=True)
+
+    def __str__(self):
+        return self.name
+    
 class Collection(models.Model):
     supplier = models.ForeignKey(
         Supplier, 

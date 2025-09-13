@@ -94,6 +94,11 @@ class ProductSerializer(serializers.ModelSerializer):
 
         return product
 
+class PostersSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Posters
+        fields = "__all__"
+
 class TrendingProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     supplier_full_name = serializers.CharField(source='Supplier.user.get_full_name', read_only=True)

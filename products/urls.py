@@ -17,6 +17,7 @@ urlpatterns = [
     path('products-by-category/<slug:Slug>/',ProductsByCategory.as_view()),
     path('categories/',Categories.as_view()),
     path('materials/',Mataterials.as_view()),
+    path('posters/', PostersListAPIView.as_view(), name='posters-list'),
     path('products-by-materials/<slug:Slug>/',ProductsByMaterials.as_view()),
 
 ]

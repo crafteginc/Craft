@@ -1,9 +1,9 @@
 from .serializers import *
 from accounts.serializers import AccountProductSerializer 
-from .models import Category, Product, MatCategory
+from .models import Category, Product, MatCategory,Posters
 from accounts.models import Follow
 from rest_framework.response import Response
-from rest_framework import status ,permissions,viewsets
+from rest_framework import status ,permissions,viewsets,generics
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.pagination import PageNumberPagination
@@ -160,6 +160,10 @@ class ProductsByMaterials(ListAPIView):
         except MatCategory.DoesNotExist:
             return Product.objects.none()
 
+class PostersListAPIView(generics.ListAPIView):
+    queryset = Posters.objects.all()
+    serializer_class = PostersSerializer
+    
 class CollectionViewSet(viewsets.ModelViewSet):
     queryset = Collection.objects.all()
 
