@@ -1,3 +1,5 @@
+# orders/serializers.py
+
 from .models import Order, OrderItem, Cart, CartItems, Wishlist, WishlistItem, Warehouse, Shipment, ShipmentItem
 from accounts.serializers import AddressSerializer
 from products.models import Product
@@ -185,14 +187,25 @@ class OrderItemListRetrieveSerializer(serializers.ModelSerializer):
         return obj.get_cost()
 
 class ShipmentItemSerializer(serializers.ModelSerializer):
-    product = serializers.SerializerMethodField()
+    product = SimpleProductSerializer(read_only=True)
 
     class Meta:
         model = ShipmentItem
         fields = ["quantity", "product"]
-
-    def get_product(self, obj):
-        return SimpleProductSerializer(obj.order_item.product).data
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        product_instance = None
+        if instance.order_item:
+            product_instance = instance.order_item.product
+        elif instance.return_request:
+            product_instance = instance.return_request.product
+        
+        if product_instance:
+            representation['product'] = SimpleProductSerializer(product_instance).data
+        else:
+            representation['product'] = None
+        return representation
 
 class ShipmentSerializer(serializers.ModelSerializer):
     items = ShipmentItemSerializer(many=True, read_only=True)
@@ -205,7 +218,10 @@ class ShipmentSerializer(serializers.ModelSerializer):
 
     def get_confirmation_code(self, obj: Shipment):
         request = self.context.get('request')
-        if request and request.user == obj.order.user:
+        is_owner = (obj.order and request.user == obj.order.user) or \
+                   (obj.return_request and request.user == obj.return_request.user)
+        
+        if request and is_owner:
             return obj.confirmation_code
         return None
 
@@ -269,7 +285,6 @@ class CouponSerializer(serializers.ModelSerializer):
         if data['valid_from'] >= data['valid_to']:
             raise serializers.ValidationError("Valid from date must be before valid to date.")
         
-        # Validation for discount type
         if data.get('discount_type') == 'percentage' and data.get('discount') > 100:
             raise serializers.ValidationError("Percentage discount cannot be more than 100.")
             

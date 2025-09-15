@@ -7,7 +7,7 @@ from accounts.models import User, Address
 from .models import Order,Warehouse, CartItems, OrderItem, Shipment, ShipmentItem, Coupon, CouponUsage
 from decimal import Decimal
 from collections import defaultdict
-from returnrequest.models import transactions
+from returnrequest.models import Transaction
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
@@ -39,15 +39,11 @@ def cancel_order_and_restock(order):
         order.paid = False
         order.save()
 
-        # Restore product stock for all items in the order
         for order_item in order.items.all():
             product = order_item.product
             product.Stock = F('Stock') + order_item.quantity
             product.save()
 
-        # You would also handle other related entities here, like removing shipments, etc.
-        # For example: order.shipments.all().delete()
-    
 def cancel_pending_credit_card_orders():
     """
     Background task to find and cancel unpaid credit card orders older than 24 hours.
@@ -78,7 +74,6 @@ def create_order_from_cart(user, cart, address_id, coupon_code, payment_method, 
     if not cart_items.exists():
         raise ValidationError("Cart is empty. Cannot create order.")
 
-    # Replicate logic from OrderViewSet for total calculation and validations
     totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, user)
 
     with transaction.atomic():
@@ -158,7 +153,7 @@ def create_order_from_cart(user, cart, address_id, coupon_code, payment_method, 
                     shipment_total
                 )
         
-        _handle_payment_and_transactions_helper(user, payment_method, totals['final_amount'], is_paid)
+        _handle_payment_and_Transaction_helper(user, payment_method, totals['final_amount'], is_paid)
         
         _update_product_stock_helper(cart_items)
         cart_items.delete()
@@ -290,39 +285,38 @@ def _process_payments(user, shipment, warehouse):
         if shipment.order.payment_method in [Order.PaymentMethod.BALANCE, Order.PaymentMethod.CREDIT_CARD]:
             user.Balance += delivery_fee_share
             Craft.Balance += craft_delivery_cut
-            transactions.objects.create(user=user, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=delivery_fee_share)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
+            Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.DELIVERY_FEE, amount=delivery_fee_share)
+            Transaction.objects.create(user=Craft, transaction_type=Transaction.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
 
             shipment.supplier.user.Balance += supplier_revenue
             Craft.Balance += craft_supplier_cut
-            transactions.objects.create(user=shipment.supplier.user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
+            Transaction.objects.create(user=shipment.supplier.user, transaction_type=Transaction.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
+            Transaction.objects.create(user=Craft, transaction_type=Transaction.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
                 
         elif shipment.order.payment_method == Order.PaymentMethod.CASH_ON_DELIVERY:
             user.Balance -= (supplier_total + warehouse.delivery_fee)
             shipment.supplier.user.Balance += supplier_revenue
             Craft.Balance += craft_supplier_cut + craft_delivery_cut
             
-            transactions.objects.create(user=user, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=-(supplier_total + warehouse.delivery_fee))
-            transactions.objects.create(user=shipment.supplier.user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
-            transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
+            Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.DELIVERY_FEE, amount=-(supplier_total + warehouse.delivery_fee))
+            Transaction.objects.create(user=shipment.supplier.user, transaction_type=Transaction.TransactionType.PURCHASED_PRODUCTS, amount=supplier_revenue)
+            Transaction.objects.create(user=Craft, transaction_type=Transaction.TransactionType.SUPPLIER_TRANSFORM, amount=craft_supplier_cut)
+            Transaction.objects.create(user=Craft, transaction_type=Transaction.TransactionType.DELIVERY_FEE, amount=craft_delivery_cut)
 
-def _handle_payment_and_transactions_helper(user, payment_method, final_amount, is_paid=False):
+def _handle_payment_and_Transaction_helper(user, payment_method, final_amount, is_paid=False):
     Craft = get_craft_user_by_email("CraftEG@craft.com")
     if payment_method == Order.PaymentMethod.BALANCE:
         if user.Balance < final_amount:
-            # This should have been validated in the view, so this is a safety check
             raise ValidationError({"message": "Insufficient balance for this order."})
         
         user.Balance -= final_amount
         Craft.Balance += final_amount
-        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=-final_amount)
-        transactions.objects.create(user=Craft, transaction_type=transactions.TransactionType.PURCHASED_PRODUCTS, amount=final_amount)
+        Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.PURCHASED_PRODUCTS, amount=-final_amount)
+        Transaction.objects.create(user=Craft, transaction_type=Transaction.TransactionType.PURCHASED_PRODUCTS, amount=final_amount)
         
     cashback_amount = final_amount * Decimal('0.05')
     user.Balance += cashback_amount    
-    transactions.objects.create(user=user, transaction_type=transactions.TransactionType.CASH_BACK, amount=cashback_amount)
+    Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.CASH_BACK, amount=cashback_amount)
     
 def _update_product_stock_helper(cart_items):
     for item in cart_items:

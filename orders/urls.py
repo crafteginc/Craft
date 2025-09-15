@@ -17,7 +17,6 @@ urlpatterns = [
     path('', include(router.urls)),
     path('warehouses/', views.WarehouseListView.as_view(), name='warehouse-list'),
     
-    # Supplier-specific endpoints remain.
     path('orders/supplier-orders/<uuid:pk>/', views.OrderViewSet.as_view({'get': 'retrieve_supplier_order'}), name='supplier-orders-details'),
     path('orders/supplier-orders/<uuid:pk>/ready-to-ship/', views.OrderViewSet.as_view({'post': 'ready_to_ship'}), name='ready-to-ship'),
 ]

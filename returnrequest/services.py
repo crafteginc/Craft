@@ -1,0 +1,150 @@
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+
+from accounts.models import Address
+from orders.models import Shipment, ShipmentItem
+from orders.services import get_warehouse_by_name
+
+
+from .models import BalanceWithdrawRequest, ReturnRequest, Transaction
+
+
+class ReturnRequestService:
+    @staticmethod
+    @transaction.atomic
+    def create_return_request(user, product, order, quantity, reason, image=None) -> ReturnRequest:
+        customer_address = order.address
+        supplier_address = get_object_or_404(Address, user=product.Supplier.user)
+
+        return_request = ReturnRequest.objects.create(
+            user=user,
+            order=order,
+            product=product,
+            supplier=product.Supplier,
+            quantity=quantity,
+            amount=product.UnitPrice * Decimal(quantity),
+            reason=reason,
+            image=image,
+            status=ReturnRequest.ReturnStatus.PENDING_APPROVAL
+        )
+
+        customer_state = customer_address.State
+        supplier_state = supplier_address.State
+        
+        if customer_state == supplier_state:
+            shipment = Shipment.objects.create(
+                return_request=return_request,
+                supplier=product.Supplier,
+                from_address=customer_address,
+                to_address=supplier_address,
+                from_state=customer_state,
+                to_state=supplier_state,
+                status=Shipment.ShipmentStatus.CREATED
+            )
+            ShipmentItem.objects.create(
+                shipment=shipment,
+                return_request=return_request,
+                quantity=quantity
+            )
+        else:
+            warehouse_source = get_warehouse_by_name(customer_state)
+            
+            shipment1 = Shipment.objects.create(
+                return_request=return_request,
+                supplier=product.Supplier,
+                from_address=customer_address,
+                to_address=warehouse_source.Address,
+                from_state=customer_state,
+                to_state=customer_state,
+                status=Shipment.ShipmentStatus.CREATED
+            )
+            ShipmentItem.objects.create(shipment=shipment1, return_request=return_request, quantity=quantity)
+
+            shipment2 = Shipment.objects.create(
+                return_request=return_request,
+                supplier=product.Supplier,
+                from_address=warehouse_source.Address,
+                to_address=supplier_address,
+                from_state=customer_state,
+                to_state=supplier_state,
+                status=Shipment.ShipmentStatus.In_Transmit
+            )
+            ShipmentItem.objects.create(shipment=shipment2, return_request=return_request, quantity=quantity)
+
+        return return_request
+    
+    @staticmethod
+    @transaction.atomic
+    def process_supplier_approval(return_request: ReturnRequest):
+        """
+        Processes financial transactions after a supplier approves a return.
+        This action is only valid if the item has been delivered to the supplier.
+        """
+        # Get the final shipment leg going to the supplier
+        final_shipment = return_request.shipments.order_by('-created_at').first()
+
+        # VALIDATION: Ensure the item has been delivered to the supplier for inspection.
+        if not final_shipment or final_shipment.status != Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY:
+            raise ValidationError("Return cannot be approved until the item has been delivered to the supplier.")
+
+        # Financial transaction logic
+        return_amount = return_request.amount
+        customer = return_request.user
+        supplier_user = return_request.supplier.user
+
+        # Update balances
+        customer.Balance += return_amount
+        supplier_user.Balance -= return_amount
+        
+        customer.save(update_fields=['Balance'])
+        supplier_user.save(update_fields=['Balance'])
+
+        # Create transaction logs for traceability
+        Transaction.objects.create(
+            user=customer,
+            transaction_type=Transaction.TransactionType.RETURN_CREDIT,
+            amount=return_amount,
+            related_object=return_request
+        )
+        Transaction.objects.create(
+            user=supplier_user,
+            transaction_type=Transaction.TransactionType.RETURN_DEBIT,
+            amount=-return_amount,
+            related_object=return_request
+        )
+
+        # Finalize the return request status
+        return_request.approve_by_supplier()
+
+
+class BalanceService:
+    @staticmethod
+    @transaction.atomic
+    def create_withdrawal_request(user, amount: Decimal, transfer_number: str, transfer_type: str, notes: str = None) -> BalanceWithdrawRequest:
+        if user.Balance < amount:
+            raise ValidationError("Insufficient balance for this withdrawal.")
+        
+        if amount <= 0:
+            raise ValidationError("Withdrawal amount must be positive.")
+
+        user.Balance -= amount
+        user.save(update_fields=['Balance'])
+
+        transaction_log = Transaction.objects.create(
+            user=user,
+            transaction_type=Transaction.TransactionType.WITHDRAWAL_REQUEST,
+            amount=-amount
+        )
+
+        withdrawal_request = BalanceWithdrawRequest.objects.create(
+            user=user,
+            amount=amount,
+            transfer_number=transfer_number,
+            transfer_type=transfer_type,
+            notes=notes,
+            related_transaction=transaction_log
+        )
+        return withdrawal_request

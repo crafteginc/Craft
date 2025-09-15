@@ -1,19 +1,13 @@
-from django.urls import path,include
-from .views import (
-    ReturnRequestViewSet,
-    BalanceWithdrawRequestListCreateView,
-    BalanceWithdrawRequestDetailView,
-    get_user_transactions
-)
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from orders.models import Order
+
+from . import views
 
 router = DefaultRouter()
-router.register('return-requests', ReturnRequestViewSet, basename='return-request')
+router.register('return-requests', views.ReturnRequestViewSet, basename='return-request')
+router.register('withdraw-requests', views.BalanceWithdrawRequestViewSet, basename='withdraw-request')
+router.register('transactions', views.TransactionViewSet, basename='transaction')
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('withdraw-requests/', BalanceWithdrawRequestListCreateView.as_view(), name='balance-withdraw-request-list-create'),
-    path('withdraw-requests/<int:pk>/', BalanceWithdrawRequestDetailView.as_view(), name='balance-withdraw-request-detail'),
-    path('transactions/', get_user_transactions, name='get-user-transactions'),
 ]

@@ -1,3 +1,5 @@
+# orders/views.py
+
 from .models import CartItems, Cart, Order,Warehouse, Shipment, Coupon
 from .serializers import *
 from rest_framework.response import Response
@@ -12,7 +14,7 @@ from products.views import StandardResultsSetPagination
 from django.db.models import  Q
 from django.utils import timezone
 from rest_framework.decorators import action
-from returnrequest.models import transactions
+from returnrequest.models import Transaction
 from .permissions import DeliveryContractProvided, IsSupplier
 from .services import get_craft_user_by_email, get_warehouse_by_name, create_order_from_cart, _calculate_all_order_totals_helper, _validate_request_data, _validate_cart_stock, _update_product_stock_helper, _send_order_notification, _process_payments
 from decimal import Decimal
@@ -118,24 +120,18 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         if user.is_authenticated:
             if hasattr(user, 'delivery'):
                 return Order.objects.for_delivery_person(user)
-            # This is the original logic. We will handle supplier-as-customer in a separate action.
             return Order.objects.for_customer(user)
         return Order.objects.none()
 
-
     def get_serializer_class(self):
-        # Use a simple list serializer for the list action.
         if self.action in ["list","list_completed_supplier_orders","list_uncompleted_supplier_orders"]:
             return OrderSimpleListSerializer
-        # Use the detailed serializer for the retrieve action.
         if self.action == "retrieve":
             return OrderRetrieveSerializer
-        # Handle supplier-specific views.
         if self.action == "retrieve_supplier_order":
             return SupplierOrderRetrieveSerializer
         if self.action in ["for_supplier", "for_supplier_as_customer"]:
             return OrderSimpleListSerializer
-        # Use the create serializer for the create action.
         return OrderCreateSerializer
 
     @action(detail=False, methods=['get'], url_path='completed-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
@@ -155,9 +151,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
 
     @action(detail=False, methods=['get'], url_path='uncompleted-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
     def list_uncompleted_supplier_orders(self, request):
-        """
-        Lists all uncompleted sales orders for a supplier.
-        """
         queryset = Order.objects.for_supplier(request.user).exclude(
             shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
         ).distinct().order_by('-created_at')
@@ -172,9 +165,6 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsSupplier], url_path='supplier-orders-details')
     def retrieve_supplier_order(self, request, pk=None):
-        """
-        Retrieves a single sales order for the authenticated supplier.
-        """
         try:
             order = Order.objects.for_supplier(request.user).filter(pk=pk).first()
             serializer = self.get_serializer(order)
@@ -184,11 +174,9 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
             
     @action(detail=True, methods=['post'], url_path='ready-to-ship', permission_classes=[IsAuthenticated, IsSupplier])
     def ready_to_ship(self, request, pk=None):
-        """
-        Allows a supplier to mark a shipment as "ready to ship."
-        """
         user = request.user
         try:
+            # This action is for orders, so we query based on order
             shipment = Shipment.objects.get(
                 order__pk=pk, 
                 supplier=user.supplier,
@@ -200,16 +188,14 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         with transaction.atomic():
             shipment.status = Shipment.ShipmentStatus.READY_TO_SHIP
             shipment.save()
-            shipment.order.status = Order.OrderStatus.READY_TO_SHIP
-            shipment.order.save()
+            if shipment.order:
+                shipment.order.status = Order.OrderStatus.READY_TO_SHIP
+                shipment.order.save()
         
         return Response({"message": f"Shipment for order {pk} is now ready to ship."}, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel_order_by_user(self, request, pk=None):
-        """
-        Allows a customer to cancel an order.
-        """
         try:
             order = Order.objects.get(pk=pk, user=request.user)
             
@@ -224,16 +210,16 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
                     if order.payment_method == Order.PaymentMethod.BALANCE:
                         user.Balance += order.final_amount
                         user.Balance -= cashback_amount
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.CASH_BACK, amount=-cashback_amount)
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_PRODUCT, amount=order.final_amount)
+                        Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.CASH_BACK, amount=-cashback_amount)
+                        Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.RETURNED_PRODUCT, amount=order.final_amount)
                     elif order.payment_method == Order.PaymentMethod.CREDIT_CARD and order.paid:
                         user.Balance += order.final_amount
                         user.Balance -= cashback_amount
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_CASH_BACK, amount=-cashback_amount)
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_PRODUCT, amount=order.final_amount)
+                        Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.RETURNED_CASH_BACK, amount=-cashback_amount)
+                        Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.RETURNED_PRODUCT, amount=order.final_amount)
                     elif order.payment_method == Order.PaymentMethod.CASH_ON_DELIVERY:
                         user.Balance -= cashback_amount
-                        transactions.objects.create(user=user, transaction_type=transactions.TransactionType.RETURNED_CASH_BACK, amount=-cashback_amount)
+                        Transaction.objects.create(user=user, transaction_type=Transaction.TransactionType.RETURNED_CASH_BACK, amount=-cashback_amount)
 
                 return Response({"message": "Order has been cancelled."}, status=status.HTTP_200_OK)
             else:
@@ -330,10 +316,11 @@ class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
             shipment.status = Shipment.ShipmentStatus.ON_MY_WAY
             shipment.save()
             
-            order = shipment.order
-            if not order.shipments.exclude(status=Shipment.ShipmentStatus.ON_MY_WAY).exists():
-                order.status = Order.OrderStatus.ON_MY_WAY
-                order.save()
+            if shipment.order:
+                order = shipment.order
+                if not order.shipments.exclude(status=Shipment.ShipmentStatus.ON_MY_WAY).exists():
+                    order.status = Order.OrderStatus.ON_MY_WAY
+                    order.save()
 
         return Response({'status': 'Shipment accepted and status updated to on my way'})
 
@@ -355,12 +342,14 @@ class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
             shipment.delivery_confirmed_at = timezone.now()
             shipment.save()
             
-            order = shipment.order
-            if all(s.status == Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY for s in order.shipments.all()):
-                order.status = Order.OrderStatus.DELIVERED_SUCCESSFULLY
-                order.save()
-            
-            _process_payments(request.user, shipment, warehouse)
+            if shipment.order:
+                order = shipment.order
+                if all(s.status == Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY for s in order.shipments.all()):
+                    order.status = Order.OrderStatus.DELIVERED_SUCCESSFULLY
+                    order.save()
+                _process_payments(request.user, shipment, warehouse)
+            # You might want to add logic here for when a return shipment is delivered
+            # For example, changing the ReturnRequest status
         
         return Response({'message': 'Shipment status updated to delivered successfully'}, status=status.HTTP_200_OK)
 
@@ -371,7 +360,7 @@ class ReturnOrdersProductsViewSet(mixins.ListModelMixin, mixins.RetrieveModelMix
     def get_queryset(self):
         user = self.request.user
         fourteen_days_ago = timezone.now() - datetime.timedelta(days=14)
-        if user.is_customer:
+        if hasattr(user, 'is_customer') and user.is_customer: # Check for customer attribute
             return Order.objects.filter(user=user, updated_at__gte=fourteen_days_ago)
         return Order.objects.none()
 
@@ -380,7 +369,7 @@ class CouponViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.is_supplier:
+        if hasattr(self.request.user, 'supplier'):
             return Coupon.objects.filter(supplier=self.request.user.supplier)
         return Coupon.objects.filter(active=True)
 

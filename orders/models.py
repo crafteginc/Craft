@@ -1,19 +1,21 @@
+# orders/models.py
+
 from django.utils.translation import gettext_lazy as _
 from django.db import models
 from products.models import Product
 from accounts.models import User, Address, Supplier, Delivery
 import uuid
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Q, CheckConstraint
 import random
 import string
 from django.core.validators import MinValueValidator
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
+from returnrequest.models import ReturnRequest
 
 class OrderManager(models.Manager):
     def for_delivery_person(self, user):
-        # ... (same as before)
         return self.filter(
             Q(shipments__from_state=user.delivery.governorate) &
             (Q(shipments__delivery_person=user) | Q(shipments__delivery_person__isnull=True)) &
@@ -27,21 +29,17 @@ class OrderManager(models.Manager):
         )
 
     def for_customer(self, user):
-        """Returns orders for a specific customer, excluding certain statuses."""
         return self.filter(user=user).exclude(
             total_amount=0
         )
 
     def for_supplier(self, user):
-        """Returns orders for a specific supplier (their sales)."""
         return self.filter(shipments__supplier=user.supplier)
 
     def for_supplier_as_customer(self, user):
-        """Returns orders where the supplier is the customer (their purchases)."""
         return self.filter(user=user)
 
     def for_delivery(self, user):
-        # ... (same as before)
         return self.filter(shipments__delivery_person=user)
 
 class Wishlist(models.Model):
@@ -145,7 +143,8 @@ class Shipment(models.Model):
         CANCELLED = 'cancelled'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="shipments")
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="shipments", null=True, blank=True)
+    return_request = models.ForeignKey(ReturnRequest, on_delete=models.CASCADE, related_name="shipments", null=True, blank=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="shipments", null=True)
     delivery_person = models.ForeignKey(Delivery, on_delete=models.CASCADE, null=True)
     from_state = models.CharField(max_length=250, blank=True)
@@ -156,6 +155,17 @@ class Shipment(models.Model):
     delivery_confirmed_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=50, choices=ShipmentStatus.choices, default=ShipmentStatus.CREATED)
     order_total_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    
+    class Meta:
+        constraints = [
+            CheckConstraint(
+                check=(
+                    (Q(order__isnull=False) & Q(return_request__isnull=True)) |
+                    (Q(order__isnull=True) & Q(return_request__isnull=False))
+                ),
+                name='shipment_has_one_parent'
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if not self.confirmation_code:
@@ -163,7 +173,8 @@ class Shipment(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Shipment for Order {self.order.id} from {self.supplier}"
+        parent_id = self.order.id if self.order else self.return_request.id
+        return f"Shipment for {parent_id} from {self.supplier}"
 
 class OrderItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -189,11 +200,24 @@ class OrderItem(models.Model):
 class ShipmentItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     shipment = models.ForeignKey(Shipment, on_delete=models.CASCADE, related_name="items")
-    order_item = models.ForeignKey(OrderItem, on_delete=models.CASCADE, related_name="shipment_items")
+    order_item = models.ForeignKey(OrderItem, on_delete=models.CASCADE, related_name="shipment_items", null=True, blank=True)
+    return_request = models.ForeignKey(ReturnRequest, on_delete=models.CASCADE, related_name="shipment_items", null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
+    
+    class Meta:
+        constraints = [
+            CheckConstraint(
+                check=(
+                    (Q(order_item__isnull=False) & Q(return_request__isnull=True)) |
+                    (Q(order_item__isnull=True) & Q(return_request__isnull=False))
+                ),
+                name='shipment_item_has_one_parent'
+            )
+        ]
 
     def __str__(self):
-        return f"Shipment Item {self.order_item.product.ProductName} in Shipment {self.shipment.id}"
+        product_name = self.order_item.product.ProductName if self.order_item else self.return_request.product.ProductName
+        return f"Shipment Item {product_name} in Shipment {self.shipment.id}"
 
 class Coupon(models.Model):
     class DiscountType(models.TextChoices):

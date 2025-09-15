@@ -88,7 +88,6 @@ class DeliveryContractProvided(permissions.BasePermission):
                }
                )
              return False
-         # Check if the supplier is marked as accepted
             if not delivery.accepted_delivery:
                 raise ValidationError("Your delivery account has not been accepted yet.the adminstrators will accept your documents soon ")
             
