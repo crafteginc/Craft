@@ -1,5 +1,3 @@
-# orders/views.py
-
 from .models import CartItems, Cart, Order,Warehouse, Shipment, Coupon
 from .serializers import *
 from rest_framework.response import Response
@@ -133,12 +131,12 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         if self.action in ["for_supplier", "for_supplier_as_customer"]:
             return OrderSimpleListSerializer
         return OrderCreateSerializer
-
+    
     @action(detail=False, methods=['get'], url_path='completed-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
     def list_completed_supplier_orders(self, request):
         user = self.request.user
-        queryset = Order.objects.for_supplier(user).filter(
-            shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
+        queryset = Order.objects.for_supplier(user).exclude(
+            shipments__status=Shipment.ShipmentStatus.CREATED
         ).distinct().order_by('-created_at')
         
         page = self.paginate_queryset(queryset)
@@ -151,8 +149,8 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
 
     @action(detail=False, methods=['get'], url_path='uncompleted-supplier-orders', permission_classes=[IsAuthenticated, IsSupplier])
     def list_uncompleted_supplier_orders(self, request):
-        queryset = Order.objects.for_supplier(request.user).exclude(
-            shipments__status=Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY
+        queryset = Order.objects.for_supplier(request.user).filter(
+            shipments__status=Shipment.ShipmentStatus.CREATED
         ).distinct().order_by('-created_at')
         
         page = self.paginate_queryset(queryset)

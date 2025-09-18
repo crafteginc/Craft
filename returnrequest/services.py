@@ -11,8 +11,8 @@ from orders.services import get_warehouse_by_name
 
 from .models import BalanceWithdrawRequest, ReturnRequest, Transaction
 
-
 class ReturnRequestService:
+    
     @staticmethod
     @transaction.atomic
     def create_return_request(user, product, order, quantity, reason, image=None) -> ReturnRequest:
@@ -118,7 +118,6 @@ class ReturnRequestService:
 
         # Finalize the return request status
         return_request.approve_by_supplier()
-
 
 class BalanceService:
     @staticmethod
