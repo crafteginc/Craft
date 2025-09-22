@@ -3,7 +3,6 @@ from orders.models import Order, OrderItem
 from products.models import Product
 from .models import BalanceWithdrawRequest, ReturnRequest, Transaction
 
-
 class ReturnRequestCreateSerializer(serializers.Serializer):
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(), write_only=True
