@@ -39,11 +39,11 @@ class ReturnRequestCreateSerializer(serializers.Serializer):
 
 class ReturnRequestListSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
-    status = serializers.CharField(source='get_status_display', read_only=True)
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
     
     class Meta:
         model = ReturnRequest
-        fields = ("id", "product_name", "amount", "status", "created_at")
+        fields = ("id", "order_number", "created_at" , "product_name", "amount", "image")
 
 class ReturnRequestDetailSerializer(serializers.ModelSerializer):
     product = serializers.StringRelatedField(read_only=True)
