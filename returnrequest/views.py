@@ -19,14 +19,16 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return ReturnRequest.objects.for_user(self.request.user).select_related(
+        user = self.request.user
+        queryset = ReturnRequest.objects.for_user(user).select_related(
             'user', 'product__Supplier', 'order'
-        )
+        ).prefetch_related('shipments')
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'create':
             return ReturnRequestCreateSerializer
-        if self.action == 'list':
+        if self.action in ['list','uncompleted','completed']:
             return ReturnRequestListSerializer
         return ReturnRequestDetailSerializer
 
@@ -41,16 +43,39 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except ValidationError as e:
             return Response({"detail": e.message}, status=status.HTTP_400_BAD_REQUEST)
+        
+    @action(detail=False, methods=['get'])
+    def uncompleted(self, request):
+        """
+        Returns a list of all uncompleted (pending approval) return requests.
+        """
+        queryset = self.get_queryset().filter(status=ReturnRequest.ReturnStatus.PENDING_APPROVAL)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def completed(self, request):
+        """
+        Returns a list of all completed (finalized) return requests.
+        """
+        queryset = self.get_queryset().exclude(status=ReturnRequest.ReturnStatus.PENDING_APPROVAL)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
     @action(detail=True, methods=['post'], permission_classes=[IsRequestSupplier])
     def approve(self, request, pk=None):
-        """
-        Allows a supplier to approve a return request after delivery.
-        This triggers the financial settlement via the service layer.
-        """
         return_request = self.get_object()
         try:
-            # Delegate all logic, including validation, to the service layer
             ReturnRequestService.process_supplier_approval(return_request)
             return Response({'status': 'Return approved and funds processed.'})
         except ValidationError as e:
@@ -58,56 +83,20 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], permission_classes=[IsRequestSupplier])
     def reject(self, request, pk=None):
-        """
-        Allows a supplier to reject a return request after delivery and inspection.
-        """
         return_request = self.get_object()
-        
-        # Get the final shipment leg to check its status
-        final_shipment = return_request.shipments.order_by('-created_at').first()
+        try:
+            ReturnRequestService.reject_return_request(return_request)
+            return Response({'status': 'Return request has been rejected.'})
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # VALIDATION: Ensure the item has been delivered before it can be rejected.
-        if not final_shipment or final_shipment.status != Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY:
-            return Response(
-                {"detail": "Return cannot be rejected until the item has been delivered to you."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Update the status
-        return_request.reject_by_supplier()
-        return Response({'status': 'Return request has been rejected.'})
-
+    # ✨ ENHANCEMENT: Refactored to use the service layer
     @action(detail=True, methods=['post'], permission_classes=[IsReturnRequestOwner])
     def cancel(self, request, pk=None):
-        """
-        Allows a user to cancel a return request if it has not been picked up.
-        """
         return_request = self.get_object()
-        
-        cancellable_statuses = [
-            Shipment.ShipmentStatus.CREATED,
-            Shipment.ShipmentStatus.READY_TO_SHIP,
-        ]
-
         try:
-            with transaction.atomic():
-                shipments = return_request.shipments.select_for_update().all()
-
-                if not shipments.exists():
-                    return_request.cancel()
-                    return Response({'status': 'Return request cancelled.'})
-
-                for shipment in shipments:
-                    if shipment.status not in cancellable_statuses:
-                        raise ValidationError(
-                            f"Cannot cancel. A shipment for this return is already in progress (status: {shipment.get_status_display()})."
-                        )
-                
-                shipments.update(status=Shipment.ShipmentStatus.CANCELLED)
-                return_request.cancel()
-
-            return Response({'status': 'Return request and all associated shipments have been cancelled.'})
-
+            ReturnRequestService.cancel_return_request(return_request)
+            return Response({'status': 'Return request and associated shipments have been cancelled.'})
         except ValidationError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

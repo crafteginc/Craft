@@ -81,15 +81,19 @@ class ReturnRequestService:
     def process_supplier_approval(return_request: ReturnRequest):
         """
         Processes financial transactions after a supplier approves a return.
-        This action is only valid if the item has been delivered to the supplier.
+        This action is only valid if the item has been delivered and the request is pending.
         """
+        # VALIDATION: Ensure the request is pending before proceeding.
+        if return_request.status != ReturnRequest.ReturnStatus.PENDING_APPROVAL:
+            raise ValidationError(f"This return request cannot be approved. Its current status is '{return_request.get_status_display()}'.")
+
         # Get the final shipment leg going to the supplier
         final_shipment = return_request.shipments.order_by('-created_at').first()
 
         # VALIDATION: Ensure the item has been delivered to the supplier for inspection.
         if not final_shipment or final_shipment.status != Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY:
             raise ValidationError("Return cannot be approved until the item has been delivered to the supplier.")
-
+        
         # Financial transaction logic
         return_amount = return_request.amount
         customer = return_request.user
@@ -118,7 +122,50 @@ class ReturnRequestService:
 
         # Finalize the return request status
         return_request.approve_by_supplier()
+    @staticmethod
+    def reject_return_request(return_request: ReturnRequest):
+        """
+        Processes a supplier's rejection of a return request.
+        Validates that the request is pending and the item has been delivered.
+        """
+        if return_request.status != ReturnRequest.ReturnStatus.PENDING_APPROVAL:
+            raise ValidationError(
+                f"This return request cannot be rejected. Its current status is '{return_request.get_status_display()}'."
+            )
+        
+        final_shipment = return_request.shipments.order_by('-created_at').first()
+        if not final_shipment or final_shipment.status != Shipment.ShipmentStatus.DELIVERED_SUCCESSFULLY:
+            raise ValidationError("Return cannot be rejected until the item has been delivered to you.")
 
+        return_request.reject_by_supplier()
+
+    @staticmethod
+    @transaction.atomic
+    def cancel_return_request(return_request: ReturnRequest):
+        """
+        Processes a user's cancellation of a return request.
+        Validates that no associated shipments are in a non-cancellable state.
+        """
+        cancellable_statuses = [
+            Shipment.ShipmentStatus.CREATED,
+            Shipment.ShipmentStatus.READY_TO_SHIP,
+        ]
+
+        shipments = return_request.shipments.select_for_update().all()
+
+        # If there are no shipments, the request can be cancelled directly.
+        if not shipments.exists():
+            return_request.cancel()
+            return
+
+        for shipment in shipments:
+            if shipment.status not in cancellable_statuses:
+                raise ValidationError(
+                    f"Cannot cancel. A shipment for this return is already in progress (status: {shipment.get_status_display()})."
+                )
+        
+        shipments.update(status=Shipment.ShipmentStatus.CANCELLED)
+        return_request.cancel()
 class BalanceService:
     @staticmethod
     @transaction.atomic
