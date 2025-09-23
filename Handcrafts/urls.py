@@ -36,6 +36,7 @@ urlpatterns = [
     path('notifications/', include('notifications.urls')),
     path('chat/', include('chatapp.urls')),
     path('return/', include('returnrequest.urls')),
+    path('reports/', include('reports.urls')),
     re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
 ]
