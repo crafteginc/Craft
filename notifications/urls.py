@@ -7,5 +7,6 @@ router.register('myNotifications', views.NotificationViewSet, basename='myNotifi
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('send-to-suppliers/', views.send_notification_to_suppliers, name='send-to-suppliers'),
     
 ]
