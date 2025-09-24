@@ -1,89 +1,83 @@
-import base64
 import json
+import base64
 import secrets
-from datetime import datetime
-from asgiref.sync import async_to_sync
-from channels.generic.websocket import WebsocketConsumer
 from django.core.files.base import ContentFile
-from accounts.models import User
+from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
 from .models import Message, Conversation
 from .serializers import MessageSerializer
 
-class ChatConsumer(WebsocketConsumer):
-    def connect(self):
-        # Get the user from the scope, which is populated by TokenAuthMiddleware
+class ChatConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
         self.user = self.scope.get("user")
-
-        # Check if the user is authenticated
-        if self.user and self.user.is_authenticated:
-            self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
-            self.room_group_name = f"chat_{self.room_name}"
-
-            # Join room group
-            async_to_sync(self.channel_layer.group_add)(
-                self.room_group_name, self.channel_name
-            )
-            self.accept()
-        else:
-            # Reject the connection if the user is not authenticated
-            self.close()
-
-    def disconnect(self, close_code):
-        # Leave room group, only if it was successfully joined
-        if hasattr(self, 'room_group_name'):
-            async_to_sync(self.channel_layer.group_discard)(
-                self.room_group_name, self.channel_name
-            )
-
-    def receive(self, text_data=None, bytes_data=None):
-        text_data_json = json.loads(text_data)
-
-        # Send message to room group
-        chat_type = {"type": "chat_message"}
-        return_dict = {**chat_type, **text_data_json}
-        async_to_sync(self.channel_layer.group_send)(
-            self.room_group_name,
-            return_dict,
-        )
-
-    def chat_message(self, event):
-        text_data_json = event.copy()
-        text_data_json.pop("type")
-        message, attachment = (
-            text_data_json["message"],
-            text_data_json.get("attachment"),
-        )
-
-        conversation = Conversation.objects.get(id=int(self.room_name))
-        sender = self.scope.get('user')
-
-        # Extra safeguard: ensure the sender is authenticated
-        if not sender or not sender.is_authenticated:
+        if not self.user or not self.user.is_authenticated:
+            await self.close()
             return
 
-        # Attachment handling
-        if attachment:
-            file_str, file_ext = attachment["data"], attachment["format"]
+        self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
+        self.room_group_name = f"chat_{self.room_name}"
 
-            file_data = ContentFile(
-                base64.b64decode(file_str), name=f"{secrets.token_hex(8)}.{file_ext}"
-            )
-            _message = Message.objects.create(
-                sender=sender,
-                attachment=file_data,
-                text=message,
-                conversation_id=conversation,
-            )
-        else:
-            _message = Message.objects.create(
-                sender=sender,
-                text=message,
-                conversation_id=conversation,
-            )
-        serializer = MessageSerializer(instance=_message)
-        # Send message back to the WebSocket
-        self.send(
-            text_data=json.dumps(
-                serializer.data
-            )
+        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'room_group_name'):
+            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        data = json.loads(text_data)
+        
+        # Pass the message and attachment data to the group
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "chat_message",
+                "message": data.get("message", ""),
+                "attachment": data.get("attachment"), # The attachment dict from the client
+            },
         )
+
+    async def chat_message(self, event):
+        # Create the message in the database and get the serialized data
+        message_data = await self.create_message(
+            text=event["message"],
+            attachment_data=event.get("attachment")
+        )
+
+        # Send the complete message object back to the client
+        await self.send(text_data=json.dumps(message_data))
+
+    @database_sync_to_async
+    def create_message(self, text, attachment_data=None):
+        """
+        Creates a new message in the database, handling an optional file attachment.
+        This method runs in a synchronous context to safely interact with the Django ORM.
+        """
+        conversation = Conversation.objects.get(id=int(self.room_name))
+        message_attachment = None
+
+        # --- Attachment Handling Logic ---
+        if attachment_data:
+            try:
+                # Expects a dictionary like: {'data': 'base64_string', 'format': 'ext'}
+                file_str, file_ext = attachment_data["data"], attachment_data["format"]
+                
+                # Decode the base64 string and create a Django ContentFile
+                file_data = ContentFile(
+                    base64.b64decode(file_str), name=f"{secrets.token_hex(8)}.{file_ext}"
+                )
+                message_attachment = file_data
+            except (KeyError, TypeError, base64.BinasciiError) as e:
+                # Log the error if attachment data is malformed
+                print(f"Error handling attachment: {e}")
+                # Continue to create the message without the attachment
+                pass
+        # --- End Attachment Handling ---
+
+        message = Message.objects.create(
+            sender=self.user,
+            text=text,
+            attachment=message_attachment, # Will be None if there's no attachment or an error occurred
+            conversation=conversation,
+        )
+        return MessageSerializer(instance=message).data

@@ -1,35 +1,50 @@
+from rest_framework import serializers
 from accounts.models import User
 from .models import Conversation, Message
-from rest_framework import serializers
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['first_name']
+        fields = ['id', 'first_name', 'last_name']
 
 class MessageSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+
     class Meta:
         model = Message
-        exclude = ('conversation_id',)
+        fields = ['id', 'sender', 'text', 'attachment', 'timestamp']
 
 class ConversationListSerializer(serializers.ModelSerializer):
-    initiator = UserSerializer()
-    receiver = UserSerializer()
+    """
+    Serializer for listing conversations. Shows the other participant and the last message.
+    """
+    other_user = serializers.SerializerMethodField()
     last_message = serializers.SerializerMethodField()
 
     class Meta:
         model = Conversation
-        fields = ['initiator', 'receiver', 'last_message']
+        fields = ['id', 'other_user', 'last_message']
 
+    def get_other_user(self, instance):
+        if instance.initiator == self.context['request'].user:
+            return UserSerializer(instance.receiver).data
+        return UserSerializer(instance.initiator).data
+        
     def get_last_message(self, instance):
-        message = instance.message_set.first()
-        return MessageSerializer(instance=message).data if message else None
+        # Access the prefetched message
+        last_message = instance.messages.first()
+        if last_message:
+            return MessageSerializer(instance=last_message).data
+        return None
 
 class ConversationSerializer(serializers.ModelSerializer):
-    initiator = UserSerializer()
-    receiver = UserSerializer()
-    message_set = MessageSerializer(many=True)
+    """
+    Serializer for a single, detailed conversation view.
+    """
+    initiator = UserSerializer(read_only=True)
+    receiver = UserSerializer(read_only=True)
+    messages = MessageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Conversation
-        fields = ['initiator', 'receiver', 'message_set']
+        fields = ['id', 'initiator', 'receiver', 'start_time', 'messages']

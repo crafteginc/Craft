@@ -1,42 +1,49 @@
-from django.shortcuts import render
-from .models import Conversation
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
+from django.shortcuts import get_object_or_404
+from django.db.models import Prefetch, Q
 from accounts.models import User
+from .models import Conversation, Message
 from .serializers import ConversationListSerializer, ConversationSerializer
-from django.db.models import Q
-from django.shortcuts import redirect, reverse
 
 @api_view(['POST'])
 def start_convo(request, user_id):
-    try:
-        participant = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return Response({'message': 'You cannot chat with a non-existent user'}, status=404)
+    participant = get_object_or_404(User, id=user_id)
+    
+    if request.user == participant:
+        return Response(
+            {'message': 'You cannot start a conversation with yourself.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-    conversation = Conversation.objects.filter(
-        Q(initiator=request.user, receiver=participant) |
-        Q(initiator=participant, receiver=request.user)
-    )
-
-    if conversation.exists():
-        return redirect(reverse('get_conversation', args=(conversation[0].id,)))
-    else:
-        conversation = Conversation.objects.create(initiator=request.user, receiver=participant)
-        return Response(ConversationSerializer(instance=conversation).data)
+    conversation = Conversation.objects.get_or_create_personal_convo(request.user, participant)
+    serializer = ConversationSerializer(instance=conversation, context={'request': request})
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 @api_view(['GET'])
 def get_conversation(request, convo_id):
-    conversation = Conversation.objects.filter(id=convo_id)
-    if not conversation.exists():
-        return Response({'message': 'Conversation does not exist'})
-    else:
-        serializer = ConversationSerializer(instance=conversation[0])
-        return Response(serializer.data)
+    conversation = get_object_or_404(
+        Conversation.objects.prefetch_related(
+            Prefetch('messages', queryset=Message.objects.order_by('timestamp'))
+        ), 
+        id=convo_id
+    )
+    
+    # Ensure the requesting user is part of the conversation
+    if request.user not in [conversation.initiator, conversation.receiver]:
+        return Response(status=status.HTTP_403_FORBIDDEN)
+        
+    serializer = ConversationSerializer(instance=conversation, context={'request': request})
+    return Response(serializer.data)
 
 @api_view(['GET'])
 def conversations(request):
-    conversation_list = Conversation.objects.filter(Q(initiator=request.user) |
-                                                    Q(receiver=request.user))
-    serializer = ConversationListSerializer(instance=conversation_list, many=True)
+    conversation_list = Conversation.objects.filter(
+        Q(initiator=request.user) | Q(receiver=request.user)
+    ).prefetch_related(
+        Prefetch('messages', queryset=Message.objects.order_by('-timestamp')[:1])
+    ).select_related('initiator', 'receiver')
+
+    serializer = ConversationListSerializer(instance=conversation_list, many=True, context={'request': request})
     return Response(serializer.data)
