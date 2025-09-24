@@ -10,29 +10,31 @@ def get_user(token_key):
         token = AccessToken(token_key)
         user = User.objects.get(id=token['user_id'])
         return user
-    except Exception as e:
-        print(f"Error retrieving user: {e}")
+    except Exception:
         return AnonymousUser()
 
 class TokenAuthMiddleware(BaseMiddleware):
 
     def __init__(self, inner):
-        self.inner = inner
+        super().__init__(inner)
 
     async def __call__(self, scope, receive, send):
-        headers = dict(scope['headers'])
+        # Default to an anonymous user
+        scope['user'] = AnonymousUser()
+        
+        # Get the token from the headers
+        headers = dict(scope.get('headers', []))
         if b'authorization' in headers:
             try:
-                token_type, token_key = headers[b'authorization'].decode().split(' ')
+                token_type, token_key = headers[b'authorization'].decode().split()
                 if token_type.lower() == 'bearer':
-                    user = await get_user(token_key)
-                    print(f"Token Key: {token_key}")
-                    print(f"Authenticated User: {user}")
-                    scope['user'] = user
-                else:
-                    print("Invalid token type")
-            except ValueError as e:
-                print(f"Error in token extraction: {e}")
-        else:
-            print("Authorization header not found")
+                    # If a token is present, try to authenticate the user
+                    scope['user'] = await get_user(token_key)
+            except (ValueError, KeyError):
+                # Malformed token, user remains anonymous
+                pass
+
+        # This is the crucial log message
+        print(f"WebSocket connection attempt by user: {scope['user']}")
+
         return await super().__call__(scope, receive, send)
