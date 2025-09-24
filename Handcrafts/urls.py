@@ -11,7 +11,7 @@ from django.conf.urls.i18n import i18n_patterns
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="Episyche Technologies API",
+        title="Craft API",
         default_version='v1',
         description="API documentation for Craft application",
         terms_of_service="https://www.example.com/policies/terms/",

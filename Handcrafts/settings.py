@@ -124,36 +124,30 @@ TEMPLATES = [
 WSGI_APPLICATION = 'Handcrafts.wsgi.application'
 ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
-# --- NEW DATABASE-BACKED CONFIGURATION (REPLACES REDIS) ---
-
+# === REDIS CONFIGURATION ===
 if ENVIRONMENT == 'development':
+    # For local testing, use the simple in-memory layer
+    CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+    SESSION_ENGINE = "django.contrib.sessions.backends.db"
+else:
+    # For production on Railway, use Redis
+    REDIS_URL = env('REDIS_URL')
     CHANNEL_LAYERS = {
         "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer"
-        }
-    }
-    
-else: # Production settings
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_postgres.core.PostgresChannelLayer",
-            "CONFIG": {
-                "DSN": env("DATABASE_URL"),
-            },
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [REDIS_URL]},
         },
     }
-
-# Caching (Database cache is fine for both environments)
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-        'LOCATION': 'django_cache_table',
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+        }
     }
-}
-
-# 3. SESSIONS
-SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
-SESSION_CACHE_ALIAS = 'default'
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "default"
 
 # --- DATABASE CONFIGURATION ---
 DATABASES = {

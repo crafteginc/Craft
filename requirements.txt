@@ -13,10 +13,8 @@ catalogue==2.0.10
 certifi==2024.2.2
 cffi==1.16.0
 channels==4.0.0
-channels_postgres==1.1.2
-psycopg2-binary==2.9.9
-psycopg==3.2.10 
-psycopg-pool==3.2.6
+channels-redis==4.2.0
+django-redis==5.4.0
 charset-normalizer==3.3.2
 click==8.1.7
 cloudpathlib==0.16.0
@@ -86,6 +84,7 @@ pathlib==1.0.1
 pillow==10.2.0
 preshed==3.0.9
 protobuf==4.25.3
+psycopg2-binary==2.9.9
 pyasn1==0.5.1
 pyasn1-modules==0.3.0
 pycparser==2.21
@@ -140,3 +139,4 @@ zope.interface==6.2
 dj-database-url==1.0.0
 gunicorn==20.1.0
 python-decouple==3.8
+channels-postgres
