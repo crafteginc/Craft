@@ -11,25 +11,31 @@ from .serializers import MessageSerializer
 
 class ChatConsumer(WebsocketConsumer):
     def connect(self):
-        print("here")
-        self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
-        self.room_group_name = f"chat_{self.room_name}"
+        # Get the user from the scope, which is populated by TokenAuthMiddleware
+        self.user = self.scope.get("user")
 
-        # Join room group
-        async_to_sync(self.channel_layer.group_add)(
-            self.room_group_name, self.channel_name
-        )
-        self.accept()
+        # Check if the user is authenticated
+        if self.user and self.user.is_authenticated:
+            self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
+            self.room_group_name = f"chat_{self.room_name}"
+
+            # Join room group
+            async_to_sync(self.channel_layer.group_add)(
+                self.room_group_name, self.channel_name
+            )
+            self.accept()
+        else:
+            # Reject the connection if the user is not authenticated
+            self.close()
 
     def disconnect(self, close_code):
-        # Leave room group
-        async_to_sync(self.channel_layer.group_discard)(
-            self.room_group_name, self.channel_name
-        )
+        # Leave room group, only if it was successfully joined
+        if hasattr(self, 'room_group_name'):
+            async_to_sync(self.channel_layer.group_discard)(
+                self.room_group_name, self.channel_name
+            )
 
-    # Receive message from WebSocket
     def receive(self, text_data=None, bytes_data=None):
-        # parse the json data into dictionary object
         text_data_json = json.loads(text_data)
 
         # Send message to room group
@@ -40,7 +46,6 @@ class ChatConsumer(WebsocketConsumer):
             return_dict,
         )
 
-    # Receive message from room group
     def chat_message(self, event):
         text_data_json = event.copy()
         text_data_json.pop("type")
@@ -50,9 +55,13 @@ class ChatConsumer(WebsocketConsumer):
         )
 
         conversation = Conversation.objects.get(id=int(self.room_name))
-        sender = self.scope['user']
+        sender = self.scope.get('user')
 
-        # Attachment
+        # Extra safeguard: ensure the sender is authenticated
+        if not sender or not sender.is_authenticated:
+            return
+
+        # Attachment handling
         if attachment:
             file_str, file_ext = attachment["data"], attachment["format"]
 
@@ -72,7 +81,7 @@ class ChatConsumer(WebsocketConsumer):
                 conversation_id=conversation,
             )
         serializer = MessageSerializer(instance=_message)
-        # Send message to WebSocket
+        # Send message back to the WebSocket
         self.send(
             text_data=json.dumps(
                 serializer.data
