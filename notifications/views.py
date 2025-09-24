@@ -1,37 +1,51 @@
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
-from django.shortcuts import HttpResponse, render
+from rest_framework import viewsets, status
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.decorators import api_view,permission_classes
+from rest_framework.response import Response
 from .models import Notification
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
 from .serializers import NotificationSerializer
-from accounts.models import User
+from .services import create_notifications_for_all_suppliers,create_notifications_for_all_users
 
 class NotificationViewSet(viewsets.ModelViewSet):
-    queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return self.queryset.filter(user=self.request.user)
-    
-def send_notification_to_suppliers(request):
-    if request.method == 'POST':
-        message = request.POST.get('message', '')
-        if message:
-            suppliers = User.objects.filter(is_supplier=True)
-            channel_layer = get_channel_layer()
-            for supplier in suppliers:
-                # Save notification to the database
-                Notification.objects.create(user=supplier, message=message)
+        return Notification.objects.filter(user=self.request.user).select_related('user')
 
-                # Send notification over the WebSocket
-                group_name = f"user_{supplier.id}"
-                async_to_sync(channel_layer.group_send)(
-                    group_name,
-                    {
-                        'type': 'send_notification',
-                        'message': message,
-                    }
-                )
-        return HttpResponse("Notifications sent to all suppliers.")
+@api_view(['POST'])
+@permission_classes([IsAdminUser]) 
+def send_to_suppliers_view(request):
+    message = request.data.get('message', '')
+    if not message:
+        return Response(
+            {'error': 'Message field is required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    create_notifications_for_all_suppliers(message)
+    
+    return Response(
+        {"status": "Notifications have been created and sent to all suppliers."},
+        status=status.status.HTTP_201_CREATED
+    )
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser]) 
+def send_to_all_users_view(request):
+    """
+    An admin-only endpoint to trigger sending notifications to all users.
+    """
+    message = request.data.get('message', '')
+    if not message:
+        return Response(
+            {'error': 'Message field is required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    create_notifications_for_all_users(message)
+    
+    return Response(
+        {"status": "Notifications have been created and sent to all users."},
+        status=status.HTTP_201_CREATED
+    )

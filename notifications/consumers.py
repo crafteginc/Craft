@@ -1,41 +1,27 @@
 import json
-from channels.generic.websocket import WebsocketConsumer
-from asgiref.sync import async_to_sync
-from .models import Notification
+from channels.generic.websocket import AsyncWebsocketConsumer
 
-class NotificationConsumer(WebsocketConsumer):
-    def connect(self):
-        self.user = self.scope["user"]
-        if self.user.is_authenticated:
-            self.group_name = f"user_{self.user.id}"
-            async_to_sync(self.channel_layer.group_add)(self.group_name, self.channel_name)
-            self.accept()
-        else:
-            self.close()
+class NotificationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope.get("user")
+        if not self.user or not self.user.is_authenticated:
+            await self.close()
+            return
 
-    def disconnect(self, close_code):
-        if self.user.is_authenticated:
-            async_to_sync(self.channel_layer.group_discard)(self.group_name, self.channel_name)
+        self.group_name = f"user_{self.user.id}"
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
 
-    def receive(self, text_data):
-        data = json.loads(text_data)
-        message = data.get('message', '')
+    async def disconnect(self, close_code):
+        if hasattr(self, 'group_name'):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
-        if self.user.is_authenticated and message:
-            # Save the notification to the database
-            Notification.objects.create(user=self.user, message=message)
-
-            # Broadcast the message to the group
-            async_to_sync(self.channel_layer.group_send)(
-                self.group_name,
-                {
-                    'type': 'send_notification',  # Updated event type
-                    'message': message,
-                }
-            )
-
-    def send_notification(self, event):  # Updated method name
+    async def send_notification(self, event):
+        """
+        Handler for the 'send_notification' event.
+        Sends the message from the event to the connected client.
+        """
         message = event['message']
-        self.send(text_data=json.dumps({
+        await self.send(text_data=json.dumps({
             'message': message,
-    }))
+        }))
