@@ -341,7 +341,7 @@ class GoogleSignInSerializer(serializers.Serializer):
         if not user_data:
             raise serializers.ValidationError("This token has expired or is invalid. Please try again.")
 
-        if user_data.get('aud') != settings.GOOGLE_CLIENT_ID:
+        if user_data.get('aud') != settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY:
             raise AuthenticationFailed('Could not verify user.')
 
         email = user_data.get('email')
