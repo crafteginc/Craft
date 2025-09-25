@@ -338,11 +338,9 @@ class GoogleSignInSerializer(serializers.Serializer):
 
     def validate_access_token(self, access_token):
         user_data = Google.validate(access_token)
-        try:
-            user_data['sub']
-        except Exception:
+        if not user_data:
             raise serializers.ValidationError("This token has expired or is invalid. Please try again.")
-        
+
         if user_data.get('aud') != settings.GOOGLE_CLIENT_ID:
             raise AuthenticationFailed('Could not verify user.')
 
@@ -351,10 +349,9 @@ class GoogleSignInSerializer(serializers.Serializer):
         last_name = user_data.get('family_name', '')
         provider = 'google'
 
-        # This is the key change: we now check if the user exists
         try:
+            # Case 1: User already exists
             user = User.objects.get(email=email)
-            # User exists, prepare login data
             tokens = user.tokens()
             return {
                 'is_new_user': False,
@@ -364,7 +361,7 @@ class GoogleSignInSerializer(serializers.Serializer):
                 "refresh_token": str(tokens.get('refresh'))
             }
         except User.DoesNotExist:
-            # User is new, sign their social data into a temporary token
+            # Case 2: New user registration
             signer = Signer()
             social_data = {
                 'email': email,
