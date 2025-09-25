@@ -1,29 +1,28 @@
 from django.http import Http404
+from django.shortcuts import render
 from django.shortcuts import get_object_or_404
 from .permissions import IsCustomerorSupplier
 from . import permissions
 from .serializers import CustomerRegistrationSerializer,SupplierRegistrationSerializer,DeliveryRegistrationSerializer,AddressSerializer
-from .serializers import LoginSerializer,SetNewPasswordSerializer,LogoutUserSerializer
+from .serializers import LoginSerializer,SetNewPasswordSerializer,LogoutUserSerializer,GoogleSignInSerializer,SocialAccountCompleteSerializer,EmailVerificationSerializer
 from .serializers import CustomerProfileSerializer,deliveryProfileSerializer,SupplierProfileSerializer,CraftersSerializer,SupplierDocumentSerializer,deliveryDocumentSerializer
-from .utils import send_generated_otp_to_email
+from .utils import send_generated_otp_to_email,OneTimePassword
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.parsers import MultiPartParser, FormParser 
 from rest_framework.generics import GenericAPIView,ListAPIView
 from rest_framework.response import Response
 from rest_framework import status ,viewsets
-from .utils import OneTimePassword
 from rest_framework.permissions import IsAuthenticated
-from .models import User,Supplier,Customer,Delivery,Follow,Address
+from .models import User,Supplier,Customer,Delivery,Follow,Address,OneTimePassword
 from rest_framework.views import APIView 
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import FileResponse
 from django.utils.timezone import now, timedelta
-from .serializers import EmailVerificationSerializer
 from django.core.mail import EmailMessage
 import random
 from django.conf import settings
-from .models import User, OneTimePassword
-from .serializers import GoogleSignInSerializer
 from asgiref.sync import sync_to_async
 from django.contrib.contenttypes.models import ContentType
 
@@ -568,15 +567,44 @@ class LogoutApiView(GenericAPIView):
         serializer.save()
         return Response({'message': 'Logged Out'},status=status.HTTP_204_NO_CONTENT)
 
-class GoogleOauthSignInview(GenericAPIView):
-    serializer_class=GoogleSignInSerializer
+class GoogleOauthSignInView(GenericAPIView):
+    serializer_class = GoogleSignInSerializer
 
     def post(self, request):
-        print(request.data)
-        serializer=self.serializer_class(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data=((serializer.validated_data)['access_token'])
-        return Response(data, status=status.HTTP_200_OK) 
+        response_data = process_social_login(serializer.validated_data['access_token'])
+        return Response(response_data, status=status.HTTP_200_OK)
+
+def google_login_page_view(request):
+    """
+    A view to render the Google Sign-in button page.
+    """
+    # Get the Google Client ID from your settings file
+    client_id = settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY
+    
+    context = {
+        'GOOGLE_CLIENT_ID': client_id
+    }
+    return render(request, 'accounts/google_login_test.html', context)
+
+class SocialAccountCompleteView(GenericAPIView):
+    serializer_class = SocialAccountCompleteSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Service handles the complex creation logic
+        user = complete_social_registration(**serializer.validated_data)
+        
+        tokens = RefreshToken.for_user(user)
+        return Response({
+            'message': 'Account created successfully.',
+            'email': user.email,
+            "access_token": str(tokens.access_token),
+            "refresh_token": str(tokens)
+        }, status=status.HTTP_201_CREATED)
 
 class AddressViewSet(viewsets.ModelViewSet):
     queryset = Address.objects.all()

@@ -41,6 +41,7 @@ def send_normal_email(data):
         to=[data['to_email']]
     )
     email.send()
+
 class Google():
     @staticmethod
     def validate(access_token):

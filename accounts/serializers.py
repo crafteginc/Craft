@@ -7,6 +7,7 @@ from products.models import Product ,Category
 from products.serializers import ProductImageSerializer
 from rest_framework import serializers
 from .utils import Google, register_social_user
+from django.core.signing import Signer, BadSignature
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
 from orders.models import Order
@@ -333,25 +334,142 @@ class LogoutUserSerializer(serializers.Serializer):
             return self.fail('bad_token')
 
 class GoogleSignInSerializer(serializers.Serializer):
-    access_token=serializers.CharField(min_length=6)
+    access_token = serializers.CharField(min_length=6)
+
     def validate_access_token(self, access_token):
-        user_data=Google.validate(access_token)
+        user_data = Google.validate(access_token)
         try:
             user_data['sub']
-            
-        except:
-            raise serializers.ValidationError("this token has expired or invalid please try again")
+        except Exception:
+            raise serializers.ValidationError("This token has expired or is invalid. Please try again.")
         
-        if user_data['aud'] != settings.GOOGLE_CLIENT_ID:
-                raise AuthenticationFailed('Could not verify user.')
+        if user_data.get('aud') != settings.GOOGLE_CLIENT_ID:
+            raise AuthenticationFailed('Could not verify user.')
 
-        user_id=user_data['sub']
-        email=user_data['email']
-        first_name=user_data['given_name']
-        last_name=user_data['family_name']
-        provider='google'
+        email = user_data.get('email')
+        first_name = user_data.get('given_name', '')
+        last_name = user_data.get('family_name', '')
+        provider = 'google'
 
-        return register_social_user(provider, email, first_name, last_name)
+        # This is the key change: we now check if the user exists
+        try:
+            user = User.objects.get(email=email)
+            # User exists, prepare login data
+            tokens = user.tokens()
+            return {
+                'is_new_user': False,
+                'email': user.email,
+                'first_name': user.first_name,
+                "access_token": str(tokens.get('access')),
+                "refresh_token": str(tokens.get('refresh'))
+            }
+        except User.DoesNotExist:
+            # User is new, sign their social data into a temporary token
+            signer = Signer()
+            social_data = {
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'provider': provider
+            }
+            temp_token = signer.sign_object(social_data)
+            return {
+                'is_new_user': True,
+                'temp_token': temp_token,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name
+            }
+
+class SocialAccountCompleteSerializer(serializers.Serializer):
+    """
+    Handles the final registration step for a new social user.
+    Supports different fields for customer, supplier, and delivery user types.
+    """
+    temp_token = serializers.CharField()
+    phone_no = serializers.CharField(max_length=14)
+    user_type = serializers.ChoiceField(choices=["customer", "supplier", "delivery"]) 
+    
+    # --- Optional Supplier Fields ---
+    CategoryTitle = serializers.CharField(required=False)
+    ExperienceYears = serializers.IntegerField(required=False)
+    SupplierPhoto = serializers.ImageField(required=False)
+    SupplierCover = serializers.ImageField(required=False)
+
+    # --- Optional Delivery Fields ---
+    DeliveryPhoto = serializers.ImageField(required=False)
+    VehicleModel = serializers.CharField(required=False)
+    VehicleColor = serializers.CharField(required=False) 
+    plateNO = serializers.CharField(required=False)
+    governorate = serializers.CharField(required=False)
+
+
+    def validate(self, attrs):
+        signer = Signer()
+        try:
+            self.social_data = signer.unsign_object(attrs['temp_token'])
+        except BadSignature:
+            raise serializers.ValidationError("Invalid or expired temporary token.")
+
+        if User.objects.filter(PhoneNO=attrs['phone_no']).exists():
+            raise serializers.ValidationError({"error": "Phone number already exists."})
+        
+        user_type = attrs.get('user_type')
+
+        # --- Conditional Validation for User Types ---
+        if user_type == 'supplier':
+            required_fields = ['CategoryTitle', 'ExperienceYears', 'SupplierPhoto', 'SupplierCover']
+            for field in required_fields:
+                if not attrs.get(field):
+                    raise serializers.ValidationError({field: f"'{field}' is required for suppliers."})
+        
+        elif user_type == 'delivery':
+            required_fields = ['DeliveryPhoto', 'VehicleModel','VehicleColor', 'plateNO', 'governorate', 'ExperienceYears']
+            for field in required_fields:
+                if not attrs.get(field):
+                    raise serializers.ValidationError({field: f"'{field}' is required for delivery."})
+        
+        return attrs
+
+    def save(self):
+        new_user = User.objects.create_user(
+            email=self.social_data['email'],
+            first_name=self.social_data['first_name'],
+            last_name=self.social_data['last_name'],
+            password=settings.SOCIAL_AUTH_PASSWORD,
+            PhoneNO=self.validated_data['phone_no'],
+            auth_provider=self.social_data['provider'],
+            is_verified=True
+        )
+
+        user_type = self.validated_data['user_type']
+        if user_type == "customer":
+            Customer.objects.create(user=new_user)
+            new_user.is_customer = True
+        elif user_type == "supplier":
+            Supplier.objects.create(
+                user=new_user, 
+                CategoryTitle=self.validated_data['CategoryTitle'],
+                ExperienceYears=self.validated_data['ExperienceYears'],
+                SupplierPhoto=self.validated_data['SupplierPhoto'],
+                SupplierCover=self.validated_data['SupplierCover']
+            )
+            new_user.is_supplier = True
+        elif user_type == "delivery":
+            # --- Populate Delivery profile with extra data ---
+            Delivery.objects.create(
+                user=new_user,
+                DeliveryPhoto=self.validated_data['DeliveryPhoto'],
+                VehicleModel=self.validated_data['VehicleModel'],
+                VehicleColor=self.validated_data.get('VehicleColor', ''), # Optional field
+                plateNO=self.validated_data['plateNO'],
+                ExperienceYears=self.validated_data['ExperienceYears'],
+                governorate=self.validated_data['governorate']
+            )
+            new_user.is_delivery = True
+        
+        new_user.save()
+        return new_user
 
 class SupplierDocumentSerializer(serializers.ModelSerializer):
     class Meta:

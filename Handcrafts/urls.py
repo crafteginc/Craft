@@ -28,6 +28,7 @@ urlpatterns = [
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
+    path('auth/', include('social_django.urls', namespace='social')),
     path('product/', include('products.urls')),
     path('course/', include('course.urls')),
     path('orders/', include('orders.urls')),

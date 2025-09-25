@@ -1,8 +1,8 @@
 from django.contrib import admin
 from .views import RegisterViewforCustomer,VerifyUserEmail,RegisterViewforSupplier,RegisterViewforDelivery,SupplierProfileAPIView
-from .views import LoginUserView,PasswordResetRequestView,SetNewPasswordView,LogoutApiView,GoogleOauthSignInview
+from .views import LoginUserView,PasswordResetRequestView,SetNewPasswordView,LogoutApiView,GoogleOauthSignInView
 from . views import CustomerProfileAPIView, DeliveryProfileAPIView,SuppliersList,SupplierDetail,FollowSupplier,TrendingSuppliersAPIView,AddressViewSet,SupplierDocumentViewSet
-from .views import deliveryDocumentViewSet,ResendOtp,CheckOTPValidity
+from .views import deliveryDocumentViewSet,ResendOtp,CheckOTPValidity,SocialAccountCompleteView,google_login_page_view
 from django.urls import path , include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -16,10 +16,13 @@ urlpatterns = [
     path('register_customer/', RegisterViewforCustomer.as_view(), name='register_customer'),
     path('register_supplier/', RegisterViewforSupplier.as_view(), name='register_Supplier'),
     path('register_delivery/', RegisterViewforDelivery.as_view(), name='register_delivery'),
-    path('auth-google/', GoogleOauthSignInview.as_view(), name='auth-google'),
+    path('auth-google/', GoogleOauthSignInView.as_view(), name='auth-google'),
+    path('google-login-page/', google_login_page_view, name='google-login-page'),
     path('verify_email/', VerifyUserEmail.as_view(), name='verify_email'),
     path('resend_otp/', ResendOtp.as_view(), name='resend_otp'),
     path('login/',LoginUserView.as_view(), name='login'),
+    path('auth-google/', GoogleOauthSignInView.as_view(), name='auth-google'),
+    path('social-complete/', SocialAccountCompleteView.as_view(), name='social-complete'),
     path('token-refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('password-reset/', PasswordResetRequestView.as_view(), name='password-reset'),
     path('check-otp/', CheckOTPValidity.as_view(), name='check_otp'),
