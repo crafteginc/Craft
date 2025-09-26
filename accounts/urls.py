@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .views import RegisterViewforCustomer,VerifyUserEmail,RegisterViewforSupplier,RegisterViewforDelivery,SupplierProfileAPIView
-from .views import LoginUserView,PasswordResetRequestView,SetNewPasswordView,LogoutApiView,GoogleOauthSignInView
+from .views import LoginUserView,PasswordResetRequestView,SetNewPasswordView,LogoutApiView
 from . views import CustomerProfileAPIView, DeliveryProfileAPIView,SuppliersList,SupplierDetail,FollowSupplier,TrendingSuppliersAPIView,AddressViewSet,SupplierDocumentViewSet
 from .views import deliveryDocumentViewSet,ResendOtp,CheckOTPValidity,SocialAccountCompleteView,google_login_page_view,google_complete_json_view
 from django.urls import path , include
@@ -16,7 +16,6 @@ urlpatterns = [
     path('register_customer/', RegisterViewforCustomer.as_view(), name='register_customer'),
     path('register_supplier/', RegisterViewforSupplier.as_view(), name='register_Supplier'),
     path('register_delivery/', RegisterViewforDelivery.as_view(), name='register_delivery'),
-    path('auth-google/', GoogleOauthSignInView.as_view(), name='auth-google'),
     path('google-login-page/', google_login_page_view, name='google-login-page'),
     path('google-complete-json/', google_complete_json_view, name='google-complete-json'),
     path('social-complete/', SocialAccountCompleteView.as_view(), name='social-complete'),

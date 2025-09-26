@@ -44,6 +44,7 @@ def create_user_and_profile(email, first_name, last_name, password, phone_no, us
     user.save()
     return user
 
+
 def send_otp_for_user(user, subject, email_template):
     """
     Generates, saves, and sends an OTP to a user for a specific purpose.
@@ -60,43 +61,6 @@ def send_otp_for_user(user, subject, email_template):
     # This assumes you have an email sending utility that can render templates
     send_normal_email(template_name=email_template, context=email_context)
 
-
-# --- Social Authentication Services ---
-
-def process_social_login(access_token):
-    """
-    Validates a Google access token and handles user login or first-time registration.
-    Returns a dictionary indicating the user's status and necessary tokens.
-    """
-    user_data = Google.validate(access_token)
-    email = user_data.get('email')
-    
-    try:
-        user = User.objects.get(email=email)
-        # Returning user
-        tokens = RefreshToken.for_user(user)
-        return {
-            'is_new_user': False,
-            'email': user.email,
-            'first_name': user.first_name,
-            "access_token": str(tokens.access_token),
-            "refresh_token": str(tokens)
-        }
-    except User.DoesNotExist:
-        # New user
-        signer = Signer()
-        social_data = {
-            'email': email,
-            'first_name': user_data.get('given_name', ''),
-            'last_name': user_data.get('family_name', ''),
-            'provider': 'google'
-        }
-        temp_token = signer.sign_object(social_data)
-        return {
-            'is_new_user': True,
-            'temp_token': temp_token,
-            **social_data
-        }
 
 def complete_social_registration(temp_token, phone_no, user_type, **extra_data):
     """

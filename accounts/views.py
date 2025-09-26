@@ -6,7 +6,7 @@ from . import permissions
 from .serializers import CustomerRegistrationSerializer,SupplierRegistrationSerializer,DeliveryRegistrationSerializer,AddressSerializer
 from .serializers import LoginSerializer,SetNewPasswordSerializer,LogoutUserSerializer,GoogleSignInSerializer,SocialAccountCompleteSerializer,EmailVerificationSerializer
 from .serializers import CustomerProfileSerializer,deliveryProfileSerializer,SupplierProfileSerializer,CraftersSerializer,SupplierDocumentSerializer,deliveryDocumentSerializer
-from .services import process_social_login, complete_social_registration
+from .services import complete_social_registration
 from .utils import send_generated_otp_to_email,OneTimePassword
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser 
@@ -571,15 +571,6 @@ class LogoutApiView(GenericAPIView):
         serializer.is_valid()
         serializer.save()
         return Response({'message': 'Logged Out'},status=status.HTTP_204_NO_CONTENT)
-
-class GoogleOauthSignInView(GenericAPIView):
-    serializer_class = GoogleSignInSerializer
-
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        response_data = process_social_login(serializer.validated_data['access_token'])
-        return Response(response_data, status=status.HTTP_200_OK)
 
 
 def google_login_page_view(request):

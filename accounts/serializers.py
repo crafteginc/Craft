@@ -336,48 +336,6 @@ class LogoutUserSerializer(serializers.Serializer):
 class GoogleSignInSerializer(serializers.Serializer):
     access_token = serializers.CharField(min_length=6)
 
-    def validate_access_token(self, access_token):
-        user_data = Google.validate(access_token)
-        if not user_data:
-            raise serializers.ValidationError("This token has expired or is invalid. Please try again.")
-
-        if user_data.get('aud') != settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY:
-            raise AuthenticationFailed('Could not verify user.')
-
-        email = user_data.get('email')
-        first_name = user_data.get('given_name', '')
-        last_name = user_data.get('family_name', '')
-        provider = 'google'
-
-        try:
-            # Case 1: User already exists
-            user = User.objects.get(email=email)
-            tokens = user.tokens()
-            return {
-                'is_new_user': False,
-                'email': user.email,
-                'first_name': user.first_name,
-                "access_token": str(tokens.get('access')),
-                "refresh_token": str(tokens.get('refresh'))
-            }
-        except User.DoesNotExist:
-            # Case 2: New user registration
-            signer = Signer()
-            social_data = {
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'provider': provider
-            }
-            temp_token = signer.sign_object(social_data)
-            return {
-                'is_new_user': True,
-                'temp_token': temp_token,
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name
-            }
-
 class SocialAccountCompleteSerializer(serializers.Serializer):
     """
     Handles the final registration step for a new social user.
