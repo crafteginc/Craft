@@ -2,44 +2,14 @@
 <html>
 <head>
     <title>Google Sign-In Test</title>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
-    <h2>Test Your Google Sign-In</h2>
-
-    <p>Client ID being used: <code>{{ GOOGLE_CLIENT_ID }}</code></p>
-
-    <div id="g_id_onload"
-        data-client_id="{{ GOOGLE_CLIENT_ID }}"
-        data-callback="handleCredentialResponse">
-    </div>
-
-    <div class="g_id_signin"
-         data-type="standard"
-         data-theme="outline"
-         data-text="sign_in_with"
-         data-shape="rectangular"
-         data-logo_alignment="left">
-    </div>
-
-    <script>
-        function handleCredentialResponse(response) {
-            const idToken = response.credential;
-            const backendUrl = `${window.location.protocol}//${window.location.host}/accounts/auth-google/`;
-
-            fetch(backendUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ access_token: idToken }),
-            })
-            .then(res => res.json())
-            .then(data => {
-                console.log('Backend Response:', data);
-            })
-            .catch(error => console.error('Error:', error));
-        }
-    </script>
+    <h2>Test Google Redirect Login</h2>
+    
+    <a href="{% url 'social:begin' 'google-oauth2' %}">
+        <button>Login with Google</button>
+    </a>
 
 </body>
 </html>
