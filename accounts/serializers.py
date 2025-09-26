@@ -6,12 +6,9 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from products.models import Product ,Category
 from products.serializers import ProductImageSerializer
 from rest_framework import serializers
-from .utils import Google, register_social_user
 from django.core.signing import Signer, BadSignature
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
-from orders.models import Order
-from django.utils.timezone import now
 import re
 
 class UserSerializer(serializers.ModelSerializer):

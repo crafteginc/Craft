@@ -1,5 +1,6 @@
 from django.http import Http404
 from django.shortcuts import render
+import json
 from django.shortcuts import get_object_or_404
 from .permissions import IsCustomerorSupplier
 from . import permissions
@@ -9,7 +10,6 @@ from .serializers import CustomerProfileSerializer,deliveryProfileSerializer,Sup
 from .services import complete_social_registration
 from .utils import send_generated_otp_to_email,OneTimePassword
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.parsers import MultiPartParser, FormParser 
 from rest_framework.generics import GenericAPIView,ListAPIView
 from rest_framework.response import Response
 from rest_framework import status ,viewsets
@@ -20,10 +20,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import FileResponse
-from social_django.utils import load_strategy, load_backend
-from social_core.exceptions import MissingBackend
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.utils.timezone import now, timedelta
 from django.core.mail import EmailMessage
 import random
@@ -573,7 +570,7 @@ class LogoutApiView(GenericAPIView):
         return Response({'message': 'Logged Out'},status=status.HTTP_204_NO_CONTENT)
 
 
-def google_login_page_view(request):
+def social_login_page_view(request):
     """
     A view to render the Google Sign-in button page.
     """
@@ -586,18 +583,37 @@ def google_login_page_view(request):
     return render(request, 'accounts/google_login_test.html', context)
 
 
-def google_complete_json_view(request):
+def social_complete_view(request):
     """
-    This view returns the social data with the temp_token as a JSON response.
+    Renders a styled HTML page to display the social login JSON output.
     """
     social_data = request.session.get("social_data")
-    if social_data:
-        # Clear the session data after it's been used
-        del request.session["social_data"]
-        return JsonResponse(social_data)
-    else:
-        return JsonResponse({"error": "No social data found in session"}, status=400)
     
+    if social_data:
+        # Clear the session data after reading it
+        del request.session["social_data"]
+        
+        # Format the dictionary as a nicely indented JSON string for display
+        json_string = json.dumps(social_data, indent=4)
+        
+        is_new = social_data.get("is_new", False)
+        message = "New User Detected" if is_new else "Login Successful"
+        
+        context = {
+            'message': message,
+            'json_data': json_string,
+            'is_new': is_new
+        }
+        return render(request, 'accounts/social_complete.html', context)
+    else:
+        # Handle cases where the page is accessed directly without data
+        context = {
+            'message': "Authentication Failed",
+            'json_data': json.dumps({"error": "No social data found in session."}, indent=4),
+            'is_new': False
+        }
+        return render(request, 'accounts/social_complete.html', context, status=400)
+       
 class SocialAccountCompleteView(GenericAPIView):
     serializer_class = SocialAccountCompleteSerializer
 

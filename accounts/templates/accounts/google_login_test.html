@@ -1,15 +1,248 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Google Sign-In Test</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        :root {
+            --primary-green: #65b95c;
+            --light-gray: #f0f2f5;
+            --text-color: #333;
+            --border-color: #e0e0e0;
+            --placeholder-color: #a0a0a0;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .login-container {
+            background-color: #ffffff;
+            padding: 2.5rem 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 380px;
+            box-sizing: border-box;
+            margin: 1rem;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .login-header .back-arrow {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.2rem;
+            color: var(--text-color);
+            text-decoration: none;
+        }
+
+        .login-header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 1.25rem;
+        }
+
+        .input-group .icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--placeholder-color);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 12px 12px 45px; /* Padding for icon */
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        .form-input::placeholder {
+            color: var(--placeholder-color);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+        }
+        
+        .password-toggle {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--placeholder-color);
+            cursor: pointer;
+        }
+
+        .forgot-password {
+            display: block;
+            text-align: right;
+            margin: -0.5rem 0 1.5rem;
+            color: var(--primary-green);
+            font-size: 0.9rem;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--primary-green);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .login-btn:hover {
+            background-color: #58a050;
+        }
+
+        .signup-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .signup-link a {
+            color: var(--primary-green);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            color: var(--placeholder-color);
+            margin: 2rem 0;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .divider:not(:empty)::before {
+            margin-right: .5em;
+        }
+
+        .divider:not(:empty)::after {
+            margin-left: .5em;
+        }
+
+        .social-login-btn {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background-color: #fff;
+            color: var(--text-color);
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+        
+        .social-login-btn:last-child {
+            margin-bottom: 0;
+        }
+        
+        .social-login-btn:hover {
+            background-color: #f9f9f9;
+        }
+
+        .social-login-btn img {
+            width: 20px;
+            height: 20px;
+        }
+
+    </style>
 </head>
 <body>
 
-    <h2>Test Google Redirect Login</h2>
-    
-    <a href="{% url 'social:begin' 'google-oauth2' %}">
-        <button>Login with Google</button>
-    </a>
+    <main class="login-container">
+        <header class="login-header">
+            <a href="#" class="back-arrow"><i class="fa-solid fa-arrow-left"></i></a>
+            <h1>Login</h1>
+        </header>
+
+        <form action="#" method="POST">
+            <div class="input-group">
+                <i class="fa-regular fa-envelope icon"></i>
+                <input type="email" class="form-input" placeholder="Enter your email" required>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock icon"></i>
+                <input type="password" class="form-input" placeholder="Enter your password" required>
+                <i class="fa-regular fa-eye-slash icon password-toggle"></i>
+            </div>
+            <a href="#" class="forgot-password">Forgot Password?</a>
+            <button type="submit" class="login-btn">Login</button>
+        </form>
+
+        <div class="signup-link">
+            Don't have an account? <a href="#">Sign Up</a>
+        </div>
+        
+        <div class="divider">OR</div>
+        
+        <section class="social-login">
+            <a href="{% url 'social:begin' 'google-oauth2' %}" class="social-login-btn">
+                <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google Logo">
+                Sign in with Google
+            </a>
+            <a href="#" class="social-login-btn">
+                <i class="fa-brands fa-apple" style="font-size: 22px;"></i>
+                Sign in with Apple
+            </a>
+            <a href="{% url 'social:begin' 'facebook' %}" class="social-login-btn">
+                <i class="fa-brands fa-facebook" style="color: #1877F2; font-size: 22px;"></i>
+                Sign in with Facebook
+            </a>
+        </section>
+    </main>
 
 </body>
 </html>

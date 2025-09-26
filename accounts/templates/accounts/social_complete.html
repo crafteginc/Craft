@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Complete</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <style>
+        :root {
+            --primary-green: #65b95c;
+            --light-gray: #f0f2f5;
+            --text-color: #333;
+            --border-color: #e0e0e0;
+            --code-bg: #2d2d2d;
+            --code-color: #f8f8f2;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 480px;
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        .header .icon {
+            font-size: 2rem;
+            color: var(--primary-green);
+        }
+        .description {
+            text-align: center; 
+            color: #555; 
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .json-output {
+            background-color: var(--code-bg);
+            color: var(--code-color);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            border: 1px solid #444;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .next-step {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .next-step a {
+            color: var(--primary-green);
+            font-weight: 600;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <header class="header">
+            <i class="fa-solid fa-check-circle icon"></i>
+            <h1>{{ message }}</h1>
+        </header>
+
+        <p class="description">
+            Your frontend application has received the following JSON data from the server:
+        </p>
+
+        <pre class="json-output"><code>{{ json_data }}</code></pre>
+        
+        {% if is_new %}
+        <div class="next-step">
+            Next, the user would be asked to <a href="#">complete their profile</a>.
+        </div>
+        {% else %}
+        <div class="next-step">
+            The user will now be logged in and redirected to the <a href="#">dashboard</a>.
+        </div>
+        {% endif %}
+    </main>
+</body>
+</html>

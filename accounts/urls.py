@@ -1,8 +1,8 @@
 from django.contrib import admin
 from .views import RegisterViewforCustomer,VerifyUserEmail,RegisterViewforSupplier,RegisterViewforDelivery,SupplierProfileAPIView
-from .views import LoginUserView,PasswordResetRequestView,SetNewPasswordView,LogoutApiView
+from .views import LoginUserView,PasswordResetRequestView,SetNewPasswordView,LogoutApiView,social_complete_view
 from . views import CustomerProfileAPIView, DeliveryProfileAPIView,SuppliersList,SupplierDetail,FollowSupplier,TrendingSuppliersAPIView,AddressViewSet,SupplierDocumentViewSet
-from .views import deliveryDocumentViewSet,ResendOtp,CheckOTPValidity,SocialAccountCompleteView,google_login_page_view,google_complete_json_view
+from .views import deliveryDocumentViewSet,ResendOtp,CheckOTPValidity,SocialAccountCompleteView,social_login_page_view
 from django.urls import path , include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -16,8 +16,8 @@ urlpatterns = [
     path('register_customer/', RegisterViewforCustomer.as_view(), name='register_customer'),
     path('register_supplier/', RegisterViewforSupplier.as_view(), name='register_Supplier'),
     path('register_delivery/', RegisterViewforDelivery.as_view(), name='register_delivery'),
-    path('google-login-page/', google_login_page_view, name='google-login-page'),
-    path('google-complete-json/', google_complete_json_view, name='google-complete-json'),
+    path('social-login-page/', social_login_page_view, name='soci-login-page'),
+    path('social-complete/', social_complete_view, name='social-complete'),
     path('social-complete/', SocialAccountCompleteView.as_view(), name='social-complete'),
     path('verify_email/', VerifyUserEmail.as_view(), name='verify_email'),
     path('resend_otp/', ResendOtp.as_view(), name='resend_otp'),

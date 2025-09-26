@@ -10,9 +10,10 @@ def create_temp_user(strategy, details, backend, user=None, *args, **kwargs):
     """
     If the user exists, log them in. If they are new, return a temp_token.
     """
-    if backend.name == 'google-oauth2':
+    if backend.name in ['google-oauth2', 'facebook']:
         email = details.get("email")
-        
+        if not email:
+            return redirect('/login/error-no-email/')
         try:
             # Case 1: User already exists (case-insensitive lookup)
             user = User.objects.get(email__iexact=email)
@@ -23,7 +24,6 @@ def create_temp_user(strategy, details, backend, user=None, *args, **kwargs):
                 "is_new": False,
                 "email": user.email,
                 "first_name": user.first_name,
-                "last_name" : user.last_name,
                 "access_token": str(tokens.access_token),
                 "refresh_token": str(tokens)
             })
@@ -34,7 +34,7 @@ def create_temp_user(strategy, details, backend, user=None, *args, **kwargs):
                 "email": email,
                 "first_name": details.get("first_name", ""),
                 "last_name": details.get("last_name", ""),
-                "provider": "google",
+                "provider": backend.name,
             }
             temp_token = signer.sign_object(social_data)
 
@@ -44,6 +44,5 @@ def create_temp_user(strategy, details, backend, user=None, *args, **kwargs):
                 "temp_token": temp_token,
                 **social_data
             })
-
         # Redirect to the JSON response view in both cases
-        return redirect('/accounts/google-complete-json/')
+        return redirect('/accounts/social-complete/')

@@ -75,9 +75,9 @@ SOCIAL_AUTH_PASSWORD = env('SOCIAL_AUTH_PASSWORD', default='craft-social-login')
 
 SOCIAL_AUTH_FACEBOOK_KEY = env('SOCIAL_AUTH_FACEBOOK_KEY')
 SOCIAL_AUTH_FACEBOOK_SECRET = env('SOCIAL_AUTH_FACEBOOK_SECRET')
-SOCIAL_AUTH_FACEBOOK_SCOPE = ['email']
+SOCIAL_AUTH_FACEBOOK_SCOPE = ['email', 'public_profile']
 SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
-    'fields': 'id, name, email'
+    'fields': 'id, name, email, first_name, last_name'
 }
 
 SOCIAL_AUTH_PIPELINE = (
