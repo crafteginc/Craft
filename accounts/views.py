@@ -574,13 +574,12 @@ def social_login_page_view(request):
     """
     A view to render the Google Sign-in button page.
     """
-    # Get the Google Client ID from your settings file
     client_id = settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY
     
     context = {
         'GOOGLE_CLIENT_ID': client_id
     }
-    return render(request, 'accounts/google_login_test.html', context)
+    return render(request, 'accounts/social_login_test.html', context)
 
 
 def social_complete_view(request):
