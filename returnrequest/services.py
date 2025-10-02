@@ -28,7 +28,7 @@ class ReturnRequestService:
             amount=product.UnitPrice * Decimal(quantity),
             reason=reason,
             image=image,
-            status=ReturnRequest.ReturnStatus.PENDING_APPROVAL
+            status=ReturnRequest.ReturnStatus.NEW
         )
 
         customer_state = customer_address.State
@@ -84,7 +84,7 @@ class ReturnRequestService:
         This action is only valid if the item has been delivered and the request is pending.
         """
         # VALIDATION: Ensure the request is pending before proceeding.
-        if return_request.status != ReturnRequest.ReturnStatus.PENDING_APPROVAL:
+        if return_request.status != ReturnRequest.ReturnStatus.NEW:
             raise ValidationError(f"This return request cannot be approved. Its current status is '{return_request.get_status_display()}'.")
 
         # Get the final shipment leg going to the supplier
@@ -122,13 +122,14 @@ class ReturnRequestService:
 
         # Finalize the return request status
         return_request.approve_by_supplier()
+   
     @staticmethod
     def reject_return_request(return_request: ReturnRequest):
         """
         Processes a supplier's rejection of a return request.
         Validates that the request is pending and the item has been delivered.
         """
-        if return_request.status != ReturnRequest.ReturnStatus.PENDING_APPROVAL:
+        if return_request.status != ReturnRequest.ReturnStatus.NEW:
             raise ValidationError(
                 f"This return request cannot be rejected. Its current status is '{return_request.get_status_display()}'."
             )
@@ -166,6 +167,7 @@ class ReturnRequestService:
         
         shipments.update(status=Shipment.ShipmentStatus.CANCELLED)
         return_request.cancel()
+
 class BalanceService:
     @staticmethod
     @transaction.atomic

@@ -28,7 +28,7 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return ReturnRequestCreateSerializer
-        if self.action in ['list','uncompleted','completed']:
+        if self.action in ['list', 'new', 'accepted', 'rejected']:
             return ReturnRequestListSerializer
         return ReturnRequestDetailSerializer
 
@@ -45,11 +45,11 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
             return Response({"detail": e.message}, status=status.HTTP_400_BAD_REQUEST)
         
     @action(detail=False, methods=['get'])
-    def uncompleted(self, request):
+    def new(self, request):
         """
-        Returns a list of all uncompleted (pending approval) return requests.
+        Returns a list of all new (pending approval) return requests.
         """
-        queryset = self.get_queryset().filter(status=ReturnRequest.ReturnStatus.PENDING_APPROVAL)
+        queryset = self.get_queryset().filter(status=ReturnRequest.ReturnStatus.NEW)
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -59,11 +59,29 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
-    def completed(self, request):
+    def accepted(self, request):
         """
-        Returns a list of all completed (finalized) return requests.
+        Returns a list of all accepted (completed) return requests.
         """
-        queryset = self.get_queryset().exclude(status=ReturnRequest.ReturnStatus.PENDING_APPROVAL)
+        queryset = self.get_queryset().filter(status=ReturnRequest.ReturnStatus.ACCEPTED)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def rejected(self, request):
+        """
+        Returns a list of all rejected or cancelled return requests.
+        """
+        rejected_statuses = [
+            ReturnRequest.ReturnStatus.REJECTED,
+            ReturnRequest.ReturnStatus.CANCELLED
+        ]
+        queryset = self.get_queryset().filter(status__in=rejected_statuses)
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -90,7 +108,6 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
         except ValidationError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ✨ ENHANCEMENT: Refactored to use the service layer
     @action(detail=True, methods=['post'], permission_classes=[IsReturnRequestOwner])
     def cancel(self, request, pk=None):
         return_request = self.get_object()

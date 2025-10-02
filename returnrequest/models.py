@@ -21,8 +21,8 @@ class ReturnRequestManager(models.Manager):
 
 class ReturnRequest(models.Model):
     class ReturnStatus(models.TextChoices):
-        PENDING_APPROVAL = 'pending_approval', _('Pending Approval')
-        COMPLETED = 'completed', _('Completed')
+        NEW = 'new', _('New')
+        ACCEPTED = 'accepted', _('Accepted')
         REJECTED = 'rejected', _('Rejected')
         CANCELLED = 'cancelled', _('Cancelled')
 
@@ -41,7 +41,7 @@ class ReturnRequest(models.Model):
     quantity = models.PositiveIntegerField()
     supplier = models.ForeignKey('accounts.Supplier', on_delete=models.CASCADE, related_name="return_requests")
     
-    status = models.CharField(max_length=50, choices=ReturnStatus.choices, default=ReturnStatus.PENDING_APPROVAL)
+    status = models.CharField(max_length=50, choices=ReturnStatus.choices, default=ReturnStatus.NEW)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     reason = models.CharField(max_length=50, choices=ReturnReason.choices)
     image = models.ImageField(upload_to='returns/%Y/%m/%d/', null=True, blank=True)
@@ -58,7 +58,7 @@ class ReturnRequest(models.Model):
         return f"Return Request #{self.pk} for {self.product.ProductName}"
 
     def approve_by_supplier(self):
-        self.status = self.ReturnStatus.COMPLETED
+        self.status = self.ReturnStatus.ACCEPTED
         self.save()
 
     def reject_by_supplier(self):
