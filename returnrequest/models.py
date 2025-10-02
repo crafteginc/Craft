@@ -99,7 +99,7 @@ class Transaction(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.get_transaction_type_display()} of {self.amount} for {self.user.username}"
+        return f"{self.get_transaction_type_display()} of {self.amount} for {self.user.get_full_name}"
 
 class BalanceWithdrawRequest(models.Model):
     class TransferStatus(models.TextChoices):
