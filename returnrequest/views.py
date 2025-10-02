@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from orders.models import Shipment
 from .models import BalanceWithdrawRequest, ReturnRequest, Transaction
@@ -125,7 +125,10 @@ class BalanceWithdrawRequestViewSet(mixins.CreateModelMixin,
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return BalanceWithdrawRequest.objects.filter(user=self.request.user)
+        user = self.request.user
+        if user.is_staff:
+            return BalanceWithdrawRequest.objects.all()
+        return BalanceWithdrawRequest.objects.filter(user=user)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -139,9 +142,35 @@ class BalanceWithdrawRequestViewSet(mixins.CreateModelMixin,
         except ValidationError as e:
             return Response({"detail": e.message}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def approve(self, request, pk=None):
+        withdrawal_request = self.get_object()
+        admin_notes = request.data.get('admin_notes', '')
+        try:
+            BalanceService.approve_withdrawal(withdrawal_request, request.user, admin_notes)
+            return Response({'status': 'Withdrawal request approved.'})
+        except ValidationError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def reject(self, request, pk=None):
+        withdrawal_request = self.get_object()
+        admin_notes = request.data.get('admin_notes')
+        if not admin_notes:
+            return Response({'detail': 'Admin notes are required for rejection.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            BalanceService.reject_withdrawal(withdrawal_request, request.user, admin_notes)
+            return Response({'status': 'Withdrawal request rejected.'})
+        except ValidationError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 class TransactionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Transaction.objects.all()
         return Transaction.objects.filter(user=self.request.user)

@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from accounts.models import Address
 from orders.models import Shipment, ShipmentItem
@@ -184,7 +185,8 @@ class BalanceService:
         transaction_log = Transaction.objects.create(
             user=user,
             transaction_type=Transaction.TransactionType.WITHDRAWAL_REQUEST,
-            amount=-amount
+            amount=-amount,
+            related_object=None
         )
 
         withdrawal_request = BalanceWithdrawRequest.objects.create(
@@ -195,4 +197,49 @@ class BalanceService:
             notes=notes,
             related_transaction=transaction_log
         )
+        
+        transaction_log.related_object = withdrawal_request
+        transaction_log.save()
+
         return withdrawal_request
+
+    @staticmethod
+    @transaction.atomic
+    def approve_withdrawal(request: BalanceWithdrawRequest, admin_user, admin_notes: str = ""):
+        if request.transfer_status != BalanceWithdrawRequest.TransferStatus.PENDING:
+            raise ValidationError("This request has already been processed.")
+
+        request.transfer_status = BalanceWithdrawRequest.TransferStatus.COMPLETED
+        request.admin_notes = admin_notes
+        request.updated_at = timezone.now()
+        request.save()
+
+        Transaction.objects.create(
+            user=request.user,
+            transaction_type=Transaction.TransactionType.WITHDRAWAL_COMPLETED,
+            amount=-request.amount,
+            related_object=request
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def reject_withdrawal(request: BalanceWithdrawRequest, admin_user, admin_notes: str):
+        if request.transfer_status != BalanceWithdrawRequest.TransferStatus.PENDING:
+            raise ValidationError("This request has already been processed.")
+
+        request.transfer_status = BalanceWithdrawRequest.TransferStatus.REJECTED
+        request.admin_notes = admin_notes
+        request.updated_at = timezone.now()
+        request.save()
+
+        # Return the money to the user's balance
+        user = request.user
+        user.Balance += request.amount
+        user.save(update_fields=['Balance'])
+
+        Transaction.objects.create(
+            user=user,
+            transaction_type=Transaction.TransactionType.WITHDRAWAL_CANCELLED,
+            amount=request.amount,
+            related_object=request
+        )

@@ -7,7 +7,6 @@ from django.utils.translation import gettext_lazy as _
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 
-
 class ReturnRequestManager(models.Manager):
     def for_user(self, user):
         if not user.is_authenticated:
@@ -73,6 +72,8 @@ class Transaction(models.Model):
     class TransactionType(models.TextChoices):
         
         WITHDRAWAL_REQUEST = 'WITHDRAWAL_REQUEST', _('Withdrawal Request')
+        WITHDRAWAL_COMPLETED = 'WITHDRAWAL_COMPLETED', _('Withdrawal Completed')
+        WITHDRAWAL_CANCELLED = 'WITHDRAWAL_CANCELLED', _('Withdrawal Cancelled')
         RETURN_CREDIT = 'RETURN_CREDIT', _('Return Credit')
         RETURN_DEBIT = 'RETURN_DEBIT', _('Return Debit')
         CASH_BACK = 'CASH_BACK', _('Cash Back')
@@ -103,9 +104,9 @@ class Transaction(models.Model):
 
 class BalanceWithdrawRequest(models.Model):
     class TransferStatus(models.TextChoices):
-        CREATED = 'Created'
-        DONE = 'Done'
-        REFUSED = 'Refused'
+        PENDING = 'Pending'
+        COMPLETED = 'Completed'
+        REJECTED = 'Rejected'
 
     class TransferType(models.TextChoices):
         BANK_TRANSFER = 'Bank Transfer'
@@ -117,10 +118,13 @@ class BalanceWithdrawRequest(models.Model):
     related_transaction = models.OneToOneField(Transaction, on_delete=models.PROTECT, null=True)
     transfer_number = models.CharField(max_length=50)
     transfer_type = models.CharField(max_length=50, choices=TransferType.choices, default=TransferType.BANK_TRANSFER)
-    transfer_status = models.CharField(max_length=50, choices=TransferStatus.choices, default=TransferStatus.CREATED)
+    transfer_status = models.CharField(max_length=50, choices=TransferStatus.choices, default=TransferStatus.PENDING)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     notes = models.TextField(null=True, blank=True)
+    admin_notes = models.TextField(null=True, blank=True) # Admin-facing notes
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
 
     class Meta:
         verbose_name = "Balance Withdraw Request"

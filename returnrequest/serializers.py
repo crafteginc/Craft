@@ -59,11 +59,23 @@ class ReturnRequestDetailSerializer(serializers.ModelSerializer):
 class BalanceWithdrawRequestSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
     transfer_status = serializers.CharField(source='get_transfer_status_display', read_only=True)
+    admin_notes = serializers.CharField(read_only=True)
 
     class Meta:
         model = BalanceWithdrawRequest
-        fields = ['id', 'user', 'amount', 'transfer_number', 'transfer_type', 'notes', 'transfer_status', 'created_at']
-        read_only_fields = ['id', 'user', 'transfer_status', 'created_at']
+        fields = [
+            'id', 'user', 'amount', 'transfer_number', 'transfer_type', 
+            'notes', 'transfer_status', 'admin_notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'user', 'transfer_status', 'admin_notes', 
+            'created_at', 'updated_at'
+        ]
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Withdrawal amount must be positive.")
+        return value
 
 class TransactionSerializer(serializers.ModelSerializer):
     transaction_type = serializers.CharField(source='get_transaction_type_display', read_only=True)
