@@ -36,13 +36,18 @@ class ReturnRequestService:
             status=ReturnRequest.ReturnStatus.NEW,
         )
 
+        # ✨ NOTIFICATION: Inform the user and the supplier with image and context
         create_notification_for_user(
             user=user,
             message=f"Your return request for '{product.ProductName}' has been submitted.",
+            related_object=return_request,
+            image=image
         )
         create_notification_for_user(
             user=product.Supplier.user,
             message=f"You have received a new return request for '{product.ProductName}'.",
+            related_object=return_request,
+            image=image
         )
 
         customer_state = customer_address.State
@@ -63,7 +68,7 @@ class ReturnRequestService:
             )
         else:
             warehouse_source = get_warehouse_by_name(customer_state)
-
+            
             shipment1 = Shipment.objects.create(
                 return_request=return_request,
                 supplier=product.Supplier,
@@ -71,11 +76,9 @@ class ReturnRequestService:
                 to_address=warehouse_source.Address,
                 from_state=customer_state,
                 to_state=customer_state,
-                status=Shipment.ShipmentStatus.CREATED,
+                status=Shipment.ShipmentStatus.CREATED
             )
-            ShipmentItem.objects.create(
-                shipment=shipment1, return_request=return_request, quantity=quantity
-            )
+            ShipmentItem.objects.create(shipment=shipment1, return_request=return_request, quantity=quantity)
 
             shipment2 = Shipment.objects.create(
                 return_request=return_request,
@@ -84,11 +87,10 @@ class ReturnRequestService:
                 to_address=supplier_address,
                 from_state=customer_state,
                 to_state=supplier_state,
-                status=Shipment.ShipmentStatus.In_Transmit,
+                status=Shipment.ShipmentStatus.In_Transmit
             )
-            ShipmentItem.objects.create(
-                shipment=shipment2, return_request=return_request, quantity=quantity
-            )
+            ShipmentItem.objects.create(shipment=shipment2, return_request=return_request, quantity=quantity)
+
 
         return return_request
 
@@ -133,9 +135,11 @@ class ReturnRequestService:
 
         return_request.approve_by_supplier()
 
+        # ✨ NOTIFICATION: Inform the user of the approval
         create_notification_for_user(
             user=customer,
             message=f"Your return request for '{return_request.product.ProductName}' has been approved.",
+            related_object=return_request
         )
 
     @staticmethod
@@ -156,9 +160,11 @@ class ReturnRequestService:
 
         return_request.reject_by_supplier()
 
+        # ✨ NOTIFICATION: Inform the user of the rejection
         create_notification_for_user(
             user=return_request.user,
             message=f"Your return request for '{return_request.product.ProductName}' has been rejected.",
+            related_object=return_request
         )
 
     @staticmethod
@@ -181,13 +187,16 @@ class ReturnRequestService:
             shipments.update(status=Shipment.ShipmentStatus.CANCELLED)
             return_request.cancel()
         
+        # ✨ NOTIFICATION: Inform both user and supplier of the cancellation
         create_notification_for_user(
             user=return_request.user,
             message=f"You have successfully cancelled your return request for '{return_request.product.ProductName}'.",
+            related_object=return_request
         )
         create_notification_for_user(
             user=return_request.supplier.user,
             message=f"The return request for '{return_request.product.ProductName}' has been cancelled by the customer.",
+            related_object=return_request
         )
 
 
@@ -240,6 +249,7 @@ class BalanceService:
         create_notification_for_user(
             user=user,
             message=f"Your withdrawal request for EGP {amount:.2f} has been submitted for review.",
+            related_object=withdrawal_request
         )
 
         return withdrawal_request
@@ -257,6 +267,7 @@ class BalanceService:
         create_notification_for_user(
             user=request.user,
             message=f"Your withdrawal request for EGP {request.amount:.2f} has been approved.",
+            related_object=request
         )
 
     @staticmethod
@@ -276,6 +287,7 @@ class BalanceService:
         create_notification_for_user(
             user=request.user,
             message=f"Your withdrawal request for EGP {request.amount:.2f} was rejected. Reason: {admin_notes}",
+            related_object=request
         )
 
         if original_status == BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL:
@@ -311,4 +323,5 @@ class BalanceService:
         create_notification_for_user(
             user=request.user,
             message=f"Your withdrawal of EGP {request.amount:.2f} is complete and has been sent.",
+            related_object=request
         )

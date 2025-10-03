@@ -7,8 +7,6 @@ from accounts.permissions import IsAuthenticated
 from products.models import Product
 from course.models import Course
 from accounts.models import Delivery, Supplier
-
-# Assuming StandardResultsSetPagination is defined elsewhere
 from products.views import StandardResultsSetPagination
 
 class ReviewCreateView(generics.CreateAPIView):

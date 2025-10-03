@@ -12,6 +12,7 @@ from .serializers import CourseInformationSerializer
 from .models import PaymentHistory
 from orders.services import _calculate_all_order_totals_helper
 from accounts.models import Address
+from notifications.services import create_notification_for_user
 
 # Stripe API key
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -28,7 +29,6 @@ class PaymentViewSet(viewsets.ViewSet):
         address_id = request.data.get("address_id")
         coupon_code = request.data.get("coupon_code")
 
-        # Retrieve the Address instance using the ID
         try:
             address = Address.objects.get(user=user, id=address_id)
         except Address.DoesNotExist:
@@ -39,10 +39,8 @@ class PaymentViewSet(viewsets.ViewSet):
         if not cart_items.exists():
             raise ValidationError({"message": "Cart is empty. Cannot create order."})
 
-        # Calculate totals using the helper function
         totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, user)
 
-        # Create a pending PaymentHistory record before creating the session
         payment_history = PaymentHistory.objects.create(
             user=user,
             cart=cart,
@@ -51,7 +49,6 @@ class PaymentViewSet(viewsets.ViewSet):
             coupon_code=coupon_code,
         )
 
-        # Use the deep links provided by Flutter
         success_url = f"crafterapp://payment/success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = "crafterapp://payment/failure"
 
@@ -65,7 +62,6 @@ class PaymentViewSet(viewsets.ViewSet):
 
         delivery_fee = totals['delivery_fee'] if totals['delivery_fee'] else Decimal("0.00")
         
-        # Populate line items with cart products
         for item in cart_items:
             session_data["line_items"].append(
                 {
@@ -81,7 +77,6 @@ class PaymentViewSet(viewsets.ViewSet):
                 }
             )
 
-        # Add delivery fee as a separate line item if applicable
         if delivery_fee > 0:
             session_data["line_items"].append(
                 {
@@ -96,7 +91,6 @@ class PaymentViewSet(viewsets.ViewSet):
                 }
             )
 
-        # Add discount as a negative line item if applicable
         if totals['discount_amount'] > 0:
             session_data["line_items"].append(
                 {
@@ -147,7 +141,6 @@ class CoursePaymentViewSet(viewsets.ViewSet):
             payment_status='pending'
         )
 
-        # Use the deep links provided by Flutter
         success_url = f"crafterapp://payment/success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = "crafterapp://payment/failure"
 
@@ -186,7 +179,6 @@ def payment_completed(request):
     """
     session_id = request.GET.get('session_id')
     
-    # Redirect to the deep link with the session_id
     deep_link = f"crafterapp://payment/success?session_id={session_id}"
     return redirect(deep_link)
 
@@ -196,6 +188,5 @@ def payment_canceled(request):
     Endpoint for canceled payment redirect.
     Redirects to the app's deep link.
     """
-    # Redirect to the deep link for cancellation
     deep_link = "crafterapp://payment/failure"
     return redirect(deep_link)

@@ -6,6 +6,9 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Message, Conversation
 from .serializers import MessageSerializer
+from notifications.services import create_notification_for_user
+from accounts.models import User
+
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -27,57 +30,61 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data=None, bytes_data=None):
         data = json.loads(text_data)
         
-        # Pass the message and attachment data to the group
         await self.channel_layer.group_send(
             self.room_group_name,
             {
                 "type": "chat_message",
                 "message": data.get("message", ""),
-                "attachment": data.get("attachment"), # The attachment dict from the client
+                "attachment": data.get("attachment"),
             },
         )
 
     async def chat_message(self, event):
-        # Create the message in the database and get the serialized data
         message_data = await self.create_message(
             text=event["message"],
             attachment_data=event.get("attachment")
         )
 
-        # Send the complete message object back to the client
         await self.send(text_data=json.dumps(message_data))
 
     @database_sync_to_async
     def create_message(self, text, attachment_data=None):
         """
-        Creates a new message in the database, handling an optional file attachment.
-        This method runs in a synchronous context to safely interact with the Django ORM.
+        Creates a new message and sends a notification to the recipient.
         """
-        conversation = Conversation.objects.get(id=int(self.room_name))
+        conversation = Conversation.objects.select_related('initiator', 'receiver').get(id=int(self.room_name))
         message_attachment = None
 
-        # --- Attachment Handling Logic ---
         if attachment_data:
             try:
-                # Expects a dictionary like: {'data': 'base64_string', 'format': 'ext'}
                 file_str, file_ext = attachment_data["data"], attachment_data["format"]
-                
-                # Decode the base64 string and create a Django ContentFile
                 file_data = ContentFile(
                     base64.b64decode(file_str), name=f"{secrets.token_hex(8)}.{file_ext}"
                 )
                 message_attachment = file_data
             except (KeyError, TypeError, base64.BinasciiError) as e:
-                # Log the error if attachment data is malformed
                 print(f"Error handling attachment: {e}")
-                # Continue to create the message without the attachment
                 pass
-        # --- End Attachment Handling ---
 
         message = Message.objects.create(
             sender=self.user,
             text=text,
-            attachment=message_attachment, # Will be None if there's no attachment or an error occurred
+            attachment=message_attachment,
             conversation=conversation,
         )
+
+        # ✨ NOTIFICATION: Inform the other participant of the new message
+        recipient = (
+            conversation.receiver
+            if conversation.initiator == self.user
+            else conversation.initiator
+        )
+        
+        create_notification_for_user(
+            user=recipient,
+            message=f"You have a new message from {self.user.get_full_name}.",
+            related_object=conversation,
+            image=message.attachment # Pass the attachment as the notification image
+        )
+        
         return MessageSerializer(instance=message).data

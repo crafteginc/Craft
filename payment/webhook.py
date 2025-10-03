@@ -8,6 +8,7 @@ from course.models import Course, Enrollment
 from django.contrib.auth import get_user_model
 from .models import PaymentHistory
 from django.db import transaction
+from notifications.services import create_notification_for_user
 
 User = get_user_model()
 
@@ -51,6 +52,14 @@ def stripe_webhook(request):
                     buyer = payment_history.user
                     if buyer:
                         enrollment, created = Enrollment.objects.get_or_create(Course=course, EnrolledUser=buyer)
+                        if created:
+                            # ✨ NOTIFICATION: Inform user of successful enrollment
+                            create_notification_for_user(
+                                user=buyer,
+                                message=f"You have successfully enrolled in the course: {course.CourseTitle}",
+                                related_object=course,
+                                image=course.Thumbnail
+                            )
                 except (PaymentHistory.DoesNotExist, Course.DoesNotExist, Exception) as e:
                     return HttpResponse(f"Error processing course payment: {e}", status=200)
                 return HttpResponse(status=200)
@@ -67,14 +76,20 @@ def stripe_webhook(request):
 
             user = payment_history.user
             cart = payment_history.cart
-            address_object = payment_history.address_id # Get the Address object instance
+            address_object = payment_history.address_id
             coupon_code = payment_history.coupon_code
             
-            # Pass the Address ID instead of the object
             order = create_order_from_cart(user, cart, address_object.id, coupon_code, Order.PaymentMethod.CREDIT_CARD, is_paid=True)
             
             payment_history.order = order
             payment_history.save()
+            
+            # ✨ NOTIFICATION: Inform user of successful payment
+            create_notification_for_user(
+                user=user,
+                message=f"Your payment for order #{order.order_number} was successful.",
+                related_object=order
+            )
             
             return HttpResponse(status=200)
 

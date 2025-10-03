@@ -8,8 +8,9 @@ from .models import Order,Warehouse, CartItems, OrderItem, Shipment, ShipmentIte
 from decimal import Decimal
 from collections import defaultdict
 from returnrequest.models import Transaction
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
+
+# ✨ NEW: Import the notification service
+from notifications.services import create_notification_for_user
 
 
 def get_craft_user_by_email(email="CraftEG@craft.com"):
@@ -106,6 +107,7 @@ def create_order_from_cart(user, cart, address_id, coupon_code, payment_method, 
         supplier_addresses = _get_supplier_addresses_helper(cart_items, user)
 
         for supplier_id, items in items_by_supplier.items():
+            supplier_user = User.objects.get(id=supplier_id)
             supplier_address = supplier_addresses[supplier_id]
             supplier_state = supplier_address.State
             customer_state = address.State
@@ -152,12 +154,25 @@ def create_order_from_cart(user, cart, address_id, coupon_code, payment_method, 
                     order_items_map,
                     shipment_total
                 )
-        
+            
+            # ✨ NOTIFICATION: Inform the supplier about the new order
+            create_notification_for_user(
+                user=supplier_user,
+                message=f"You have a new order #{order.order_number} containing {len(items)} item(s).",
+                related_object=order
+            )
+
         _handle_payment_and_Transaction_helper(user, payment_method, totals['final_amount'], is_paid)
         
         _update_product_stock_helper(cart_items)
         cart_items.delete()
-        _send_order_notification(user, order.id)
+
+        # ✨ NOTIFICATION: Inform the customer that their order was successful
+        create_notification_for_user(
+            user=user,
+            message=f"Your order #{order.order_number} has been placed successfully!",
+            related_object=order
+        )
 
         if coupon_code:
             try:
@@ -352,11 +367,5 @@ def _update_product_stock(cart_items):
             item.Product.save(update_fields=['Stock'])
 
 def _send_order_notification(user, order_id):
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"user_{user.id}",
-            {
-                "type": "send_notification",
-                "message": f"Your order with ID {order_id} has been created."
-            }
-        )
+        # ✨ DEPRECATED: This function is replaced by direct calls to the notification service
+        pass

@@ -15,6 +15,7 @@ from rest_framework.decorators import action
 from returnrequest.models import Transaction
 from .permissions import DeliveryContractProvided, IsSupplier
 from .services import get_craft_user_by_email, get_warehouse_by_name, create_order_from_cart, _calculate_all_order_totals_helper, _validate_request_data, _validate_cart_stock, _update_product_stock_helper, _send_order_notification, _process_payments
+from notifications.services import create_notification_for_user
 from decimal import Decimal
 import datetime
 
@@ -319,6 +320,18 @@ class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
                 if not order.shipments.exclude(status=Shipment.ShipmentStatus.ON_MY_WAY).exists():
                     order.status = Order.OrderStatus.ON_MY_WAY
                     order.save()
+                
+                # ✨ NOTIFICATION: Inform customer and supplier
+                create_notification_for_user(
+                    user=order.user,
+                    message=f"A delivery person is on their way with a shipment for your order #{order.order_number}.",
+                    related_object=order
+                )
+                create_notification_for_user(
+                    user=shipment.supplier.user,
+                    message=f"Your shipment for order #{order.order_number} has been picked up by a delivery person.",
+                    related_object=order
+                )
 
         return Response({'status': 'Shipment accepted and status updated to on my way'})
 
@@ -346,9 +359,14 @@ class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
                     order.status = Order.OrderStatus.DELIVERED_SUCCESSFULLY
                     order.save()
                 _process_payments(request.user, shipment, warehouse)
-            # You might want to add logic here for when a return shipment is delivered
-            # For example, changing the ReturnRequest status
-        
+                
+                # ✨ NOTIFICATION: Inform customer of delivery
+                create_notification_for_user(
+                    user=order.user,
+                    message=f"A shipment for your order #{order.order_number} has been successfully delivered!",
+                    related_object=order
+                )
+
         return Response({'message': 'Shipment status updated to delivered successfully'}, status=status.HTTP_200_OK)
 
 class ReturnOrdersProductsViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):

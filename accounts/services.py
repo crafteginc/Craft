@@ -8,11 +8,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User, Customer, Supplier, Delivery, OneTimePassword, Follow
 from .utils import Google, send_normal_email
 
+# ✨ NEW: Import the notification service
+from notifications.services import create_notification_for_user
+
 
 def create_user_and_profile(email, first_name, last_name, password, phone_no, user_type, **extra_data):
     """
     Creates a user and their corresponding profile (Customer, Supplier, or Delivery).
-    This single function replaces the save methods in all three registration serializers.
     """
     user = User.objects.create_user(
         email=email,
@@ -22,9 +24,11 @@ def create_user_and_profile(email, first_name, last_name, password, phone_no, us
         PhoneNO=phone_no
     )
 
+    profile_type = ""
     if user_type == "customer":
         Customer.objects.create(user=user)
         user.is_customer = True
+        profile_type = "Customer"
     elif user_type == "supplier":
         Supplier.objects.create(
             user=user,
@@ -32,6 +36,7 @@ def create_user_and_profile(email, first_name, last_name, password, phone_no, us
             ExperienceYears=extra_data.get('ExperienceYears')
         )
         user.is_supplier = True
+        profile_type = "Supplier"
     elif user_type == "delivery":
         Delivery.objects.create(
             user=user,
@@ -40,8 +45,16 @@ def create_user_and_profile(email, first_name, last_name, password, phone_no, us
             governorate=extra_data.get('governorate')
         )
         user.is_delivery = True
+        profile_type = "Delivery"
 
     user.save()
+
+    # ✨ NOTIFICATION: Welcome the new user
+    create_notification_for_user(
+        user=user,
+        message=f"Welcome, {user.first_name}! Your {profile_type} profile has been created."
+    )
+    
     return user
 
 
@@ -58,14 +71,18 @@ def send_otp_for_user(user, subject, email_template):
         'otp': otp,
         'recipient_email': user.email
     }
-    # This assumes you have an email sending utility that can render templates
     send_normal_email(template_name=email_template, context=email_context)
+
+    # ✨ NOTIFICATION: Inform the user that an OTP has been sent
+    create_notification_for_user(
+        user=user,
+        message=f"A One-Time Passcode has been sent to your email for: {subject}."
+    )
 
 
 def complete_social_registration(temp_token, phone_no, user_type, **extra_data):
     """
-    Finalizes registration for a new social user using the temporary token
-    and additional profile information.
+    Finalizes registration for a new social user.
     """
     signer = Signer()
     try:
@@ -88,5 +105,11 @@ def complete_social_registration(temp_token, phone_no, user_type, **extra_data):
     user.auth_provider = social_data['provider']
     user.is_verified = True
     user.save()
+    
+    # ✨ NOTIFICATION: Confirm successful social registration
+    create_notification_for_user(
+        user=user,
+        message="Your account has been successfully created via social login."
+    )
     
     return user

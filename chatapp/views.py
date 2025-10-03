@@ -6,6 +6,7 @@ from django.db.models import Prefetch, Q
 from accounts.models import User
 from .models import Conversation, Message
 from .serializers import ConversationListSerializer, ConversationSerializer
+from notifications.services import create_notification_for_user
 
 @api_view(['POST'])
 def start_convo(request, user_id):
@@ -18,6 +19,14 @@ def start_convo(request, user_id):
         )
 
     conversation = Conversation.objects.get_or_create_personal_convo(request.user, participant)
+    
+    # ✨ NOTIFICATION: Inform the participant that a new conversation has started.
+    create_notification_for_user(
+        user=participant,
+        message=f"{request.user.get_full_name} started a conversation with you.",
+        related_object=conversation
+    )
+
     serializer = ConversationSerializer(instance=conversation, context={'request': request})
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -30,7 +39,6 @@ def get_conversation(request, convo_id):
         id=convo_id
     )
     
-    # Ensure the requesting user is part of the conversation
     if request.user not in [conversation.initiator, conversation.receiver]:
         return Response(status=status.HTTP_403_FORBIDDEN)
         

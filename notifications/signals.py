@@ -22,6 +22,7 @@ def send_single_notification_on_save(sender, instance, created, **kwargs):
             {
                 'type': 'send_notification',
                 'message': instance.message,
+                'image_url': instance.image_url,
             }
         )
 
@@ -39,5 +40,6 @@ def send_bulk_notifications(sender, notifications, **kwargs):
             {
                 'type': 'send_notification',
                 'message': notification.message,
+                'image_url': notification.image_url,
             }
         )

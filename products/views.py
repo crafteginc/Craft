@@ -1,7 +1,8 @@
 from .serializers import *
 from accounts.serializers import AccountProductSerializer 
 from .models import Category, Product, MatCategory,Posters
-from accounts.models import Follow
+from orders.models import WishlistItem
+from accounts.models import Follow, Supplier
 from rest_framework.response import Response
 from rest_framework import status ,permissions,viewsets,generics
 from rest_framework.viewsets import ModelViewSet
@@ -12,10 +13,10 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.views import APIView
 from rest_framework .exceptions import ValidationError
-from accounts.models import Supplier
 from .permissions import *
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.generics import ListAPIView
+from notifications.services import create_notification_for_user
 
 class Categories(APIView):
     #permission_classes = [permissions.IsAuthenticated]
@@ -53,7 +54,6 @@ class ProductsViewSet(ModelViewSet):
     pagination_class = StandardResultsSetPagination
 
     def get_permissions(self):
-        # Apply permissions based on the request method (action)
         if self.request.method == 'POST':
             permission_classes = [permissions.IsAuthenticated, SupplierContractProvided, SupplierHasAddress]
         else:
@@ -70,12 +70,30 @@ class ProductsViewSet(ModelViewSet):
             raise ValidationError("Only Suppliers can create products.")
         supplier_instance = Supplier.objects.get(user=self.request.user)
         product = serializer.save(Supplier=supplier_instance)
+        
+        followers = Follow.objects.filter(supplier=supplier_instance)
+        for follow in followers:
+            if hasattr(follow.follower, 'user'):
+                user = follow.follower.user
+                message = f"Your followed supplier {supplier_instance.user.get_full_name()} has a new product: {product.ProductName}"
+                create_notification_for_user(user=user, message=message, related_object=product)
+
 
     def perform_update(self, serializer):
-        instance = serializer.instance
+        instance = self.get_object()
+        old_stock = instance.Stock
         if not self.request.user.is_supplier or instance.Supplier.user != self.request.user:
             raise ValidationError("You are not allowed to update this product.")
-        serializer.save()
+        product = serializer.save()
+        new_stock = product.Stock
+        
+        if old_stock == 0 and new_stock > 0:
+            wishlist_items = WishlistItem.objects.filter(product=product).select_related('wishlist__user')
+            for item in wishlist_items:
+                user = item.wishlist.user
+                message = f"Good news! '{product.ProductName}' is back in stock."
+                create_notification_for_user(user=user, message=message, related_object=product)
+
 
     def perform_destroy(self, instance):
         if not self.request.user.is_supplier or instance.Supplier.user != self.request.user:

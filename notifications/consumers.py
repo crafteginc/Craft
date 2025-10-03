@@ -19,9 +19,12 @@ class NotificationConsumer(AsyncWebsocketConsumer):
     async def send_notification(self, event):
         """
         Handler for the 'send_notification' event.
-        Sends the message from the event to the connected client.
         """
         message = event['message']
+        image_url = event.get('image_url')  # Safely get the image_url
+
+        # ✨ EDIT: Send both message and image_url to the client
         await self.send(text_data=json.dumps({
             'message': message,
+            'image_url': image_url,
         }))

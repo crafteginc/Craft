@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from .models import Review
-from accounts.models import Customer, Delivery, Supplier
+from accounts.models import Customer, Delivery, Supplier, User
 from products.models import Product
 from course.models import Course
+from notifications.services import create_notification_for_user
 
 class ReviewSerializer(serializers.ModelSerializer):
     customer = serializers.CharField(default=serializers.CurrentUserDefault(), read_only=True)
@@ -26,25 +27,25 @@ class ReviewSerializer(serializers.ModelSerializer):
         except Customer.DoesNotExist:
             raise serializers.ValidationError("You must be a customer to make a review.")
 
-        # Determine the object type and ID from the request data
         product_id = request.data.get('product_id')
         course_id = request.data.get('course_id')
         delivery_id = request.data.get('delivery_id')
         supplier_id = request.data.get('supplier_id')
 
-        # Check for mutually exclusive IDs
         provided_ids = [id for id in [product_id, course_id, delivery_id, supplier_id] if id is not None]
         if len(provided_ids) != 1:
             raise serializers.ValidationError("You must provide exactly one of product_id, course_id, delivery_id, or supplier_id.")
 
         review_target = None
-        
+        notification_recipient = None
+
         if product_id:
             try:
                 review_target = Product.objects.get(pk=product_id)
                 if Review.objects.filter(customer=customer_instance, product=review_target).exists():
                     raise serializers.ValidationError("You have already reviewed this product.")
                 validated_data['product'] = review_target
+                notification_recipient = review_target.Supplier.user
             except Product.DoesNotExist:
                 raise serializers.ValidationError({"product_id": "Invalid product ID."})
         
@@ -54,6 +55,7 @@ class ReviewSerializer(serializers.ModelSerializer):
                 if Review.objects.filter(customer=customer_instance, course=review_target).exists():
                     raise serializers.ValidationError("You have already reviewed this course.")
                 validated_data['course'] = review_target
+                notification_recipient = review_target.instructor.user
             except Course.DoesNotExist:
                 raise serializers.ValidationError({"course_id": "Invalid course ID."})
 
@@ -63,6 +65,7 @@ class ReviewSerializer(serializers.ModelSerializer):
                 if Review.objects.filter(customer=customer_instance, delivery=review_target).exists():
                     raise serializers.ValidationError("You have already reviewed this delivery.")
                 validated_data['delivery'] = review_target
+                notification_recipient = review_target.user
             except Delivery.DoesNotExist:
                 raise serializers.ValidationError({"delivery_id": "Invalid delivery ID."})
         
@@ -72,10 +75,19 @@ class ReviewSerializer(serializers.ModelSerializer):
                 if Review.objects.filter(customer=customer_instance, supplier=review_target).exists():
                     raise serializers.ValidationError("You have already reviewed this supplier.")
                 validated_data['supplier'] = review_target
+                notification_recipient = review_target.user
             except Supplier.DoesNotExist:
                 raise serializers.ValidationError({"supplier_id": "Invalid supplier ID."})
         
-        return Review.objects.create(customer=customer_instance, **validated_data)
+        review = Review.objects.create(customer=customer_instance, **validated_data)
+
+        if notification_recipient:
+            create_notification_for_user(
+                user=notification_recipient,
+                message=f"You have received a new review on '{review_target}' from {customer_instance.user.username}."
+            )
+            
+        return review
 
     def update(self, instance, validated_data):
         instance.rating = validated_data.get('rating', instance.rating)

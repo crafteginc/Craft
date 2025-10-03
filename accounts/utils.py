@@ -12,6 +12,9 @@ from django.contrib.auth import authenticate
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
 
+# ✨ NEW: Import the notification service
+from notifications.services import create_notification_for_user
+
 
 def send_generated_otp_to_email(email, request):
     subject = "One time Passcode for Email Verification"
@@ -34,6 +37,12 @@ def send_generated_otp_to_email(email, request):
     d_email = EmailMessage(subject=subject, body=email_body, from_email=from_email, to=[user.email])
     d_email.send()
 
+    # ✨ NOTIFICATION: Inform the user that an OTP has been sent
+    create_notification_for_user(
+        user=user,
+        message="Your verification passcode has been sent to your email."
+    )
+
 
 def send_normal_email(data):
     email = EmailMessage(
@@ -53,4 +62,3 @@ class Google():
                 return id_info
         except:
             return "the token is either invalid or has expired"
-
