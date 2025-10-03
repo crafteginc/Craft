@@ -30,56 +30,76 @@ class ReturnRequestAdmin(admin.ModelAdmin):
     image_thumbnail.short_description = 'Image Thumbnail'
 
 class RejectForm(forms.Form):
+    """A form to collect admin notes for rejection."""
     admin_notes = forms.CharField(widget=forms.Textarea, required=True)
 
 @admin.register(BalanceWithdrawRequest)
 class BalanceWithdrawRequestAdmin(admin.ModelAdmin):
-    list_display = ('user', 'amount', 'transfer_status', 'risk_score', 'created_at')
+    list_display = ('user', 'get_user_balance', 'amount', 'transfer_type', 'transfer_number', 'created_at')
     list_filter = ('transfer_status', 'transfer_type', 'created_at')
-    search_fields = ('user__username', 'transfer_number')
-    readonly_fields = ('id', 'user', 'related_transaction', 'risk_score', 'created_at', 'updated_at')
+    search_fields = ('user__first_name', 'user__last_name', 'user__email', 'transfer_number')
+    readonly_fields = ('id', 'user', 'related_transaction', 'created_at', 'updated_at')
+    autocomplete_fields = ['user']
     list_select_related = ['user']
     
     fieldsets = (
         ('Request Details', {
             'fields': ('user', 'amount', 'transfer_status', 'transfer_type', 'transfer_number', 'notes')
         }),
-        ('Fraud & Admin Section', {
-            'fields': ('risk_score', 'admin_notes',)
+        ('Admin Section', {
+            'fields': ('admin_notes',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
         })
     )
 
-    actions = ['approve_selected_requests', 'reject_selected_requests', 'process_approved_requests']
+    actions = ['approve_requests', 'reject_requests_with_notes']
+    
+    @admin.display(description="Available Balance")
+    def get_user_balance(self, obj):
+       available_balance = obj.user.Balance + obj.amount
+       return f"EGP {available_balance:.2f}"
 
-    @admin.action(description="Manually Approve selected requests")
-    def approve_selected_requests(self, request, queryset):
-        for req in queryset.filter(transfer_status=BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL):
-            BalanceService.approve_withdrawal(req, request.user)
-        self.message_user(request, "Selected requests approved.", messages.SUCCESS)
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.transfer_status != BalanceWithdrawRequest.TransferStatus.PENDING:
+            return [field.name for field in self.model._meta.fields]
+        return self.readonly_fields
 
-    @admin.action(description="Reject selected requests")
-    def reject_selected_requests(self, request, queryset):
-        # This action now uses the intermediate page
+    @admin.action(description="Approve selected withdrawal requests")
+    def approve_requests(self, request, queryset):
+        pending_requests = queryset.filter(transfer_status=BalanceWithdrawRequest.TransferStatus.PENDING)
+        for withdrawal_request in pending_requests:
+            try:
+                BalanceService.approve_withdrawal(withdrawal_request, request.user)
+            except Exception as e:
+                self.message_user(request, f"Error approving request {withdrawal_request.id}: {e}", messages.ERROR)
+        
+        if pending_requests.exists():
+            self.message_user(request, "Selected pending requests have been approved.", messages.SUCCESS)
+
+    @admin.action(description="Reject selected requests with notes")
+    def reject_requests_with_notes(self, request, queryset):
+        pending_requests = queryset.filter(transfer_status=BalanceWithdrawRequest.TransferStatus.PENDING)
+
         if 'apply' in request.POST:
             form = RejectForm(request.POST)
             if form.is_valid():
                 admin_notes = form.cleaned_data['admin_notes']
-                for req in queryset:
-                    BalanceService.reject_withdrawal(req, request.user, admin_notes)
+                for req in pending_requests:
+                    try:
+                        BalanceService.reject_withdrawal(req, request.user, admin_notes)
+                    except Exception as e:
+                        self.message_user(request, f"Error rejecting request {req.id}: {e}", messages.ERROR)
+                
                 self.message_user(request, "Selected requests have been rejected.", messages.SUCCESS)
                 return
         
         form = RejectForm()
-        return render(request, 'admin/reject_intermediate.html', context={'requests': queryset, 'form': form})
-
-    @admin.action(description="Process approved requests (Send to Gateway)")
-    def process_approved_requests(self, request, queryset):
-        for req in queryset.filter(transfer_status=BalanceWithdrawRequest.TransferStatus.APPROVED):
-            BalanceService.process_approved_request(req)
-        self.message_user(request, "Approved requests sent for processing.", messages.SUCCESS)
+        return render(request, 'admin/reject_intermediate.html', context={
+            'requests': pending_requests, 
+            'form': form
+        })
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
