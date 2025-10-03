@@ -7,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 
+
 class ReturnRequestManager(models.Manager):
     def for_user(self, user):
         if not user.is_authenticated:
@@ -104,9 +105,13 @@ class Transaction(models.Model):
 
 class BalanceWithdrawRequest(models.Model):
     class TransferStatus(models.TextChoices):
-        PENDING = 'Pending'
-        COMPLETED = 'Completed'
-        REJECTED = 'Rejected'
+        REQUESTED = 'Requested', _('Requested')
+        AWAITING_APPROVAL = 'Awaiting Approval', _('Awaiting Approval')
+        APPROVED = 'Approved', _('Approved')
+        PROCESSING = 'Processing', _('Processing')
+        COMPLETED = 'Completed', _('Completed')
+        REJECTED = 'Rejected', _('Rejected')
+        FAILED = 'Failed', _('Failed')
 
     class TransferType(models.TextChoices):
         BANK_TRANSFER = 'Bank Transfer'
@@ -118,13 +123,13 @@ class BalanceWithdrawRequest(models.Model):
     related_transaction = models.OneToOneField(Transaction, on_delete=models.PROTECT, null=True)
     transfer_number = models.CharField(max_length=50)
     transfer_type = models.CharField(max_length=50, choices=TransferType.choices, default=TransferType.BANK_TRANSFER)
-    transfer_status = models.CharField(max_length=50, choices=TransferStatus.choices, default=TransferStatus.PENDING)
+    transfer_status = models.CharField(max_length=50, choices=TransferStatus.choices, default=TransferStatus.REQUESTED)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     notes = models.TextField(null=True, blank=True)
-    admin_notes = models.TextField(null=True, blank=True) # Admin-facing notes
+    admin_notes = models.TextField(null=True, blank=True)
+    risk_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
 
     class Meta:
         verbose_name = "Balance Withdraw Request"

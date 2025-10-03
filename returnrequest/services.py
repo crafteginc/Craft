@@ -170,6 +170,20 @@ class ReturnRequestService:
         return_request.cancel()
 
 class BalanceService:
+    
+    @staticmethod
+    def _run_fraud_check(request: BalanceWithdrawRequest):
+        # SIMULATED FRAUD CHECK
+        # In a real system, this would call an external service.
+        if request.amount > 1000:
+            request.risk_score = 75.0
+            request.transfer_status = BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL
+            request.admin_notes = "Flagged for manual review due to high amount."
+        else:
+            request.risk_score = 10.0
+            request.transfer_status = BalanceWithdrawRequest.TransferStatus.APPROVED
+        request.save()
+
     @staticmethod
     @transaction.atomic
     def create_withdrawal_request(user, amount: Decimal, transfer_number: str, transfer_type: str, notes: str = None) -> BalanceWithdrawRequest:
@@ -185,8 +199,7 @@ class BalanceService:
         transaction_log = Transaction.objects.create(
             user=user,
             transaction_type=Transaction.TransactionType.WITHDRAWAL_REQUEST,
-            amount=-amount,
-            related_object=None
+            amount=-amount
         )
 
         withdrawal_request = BalanceWithdrawRequest.objects.create(
@@ -198,48 +211,65 @@ class BalanceService:
             related_transaction=transaction_log
         )
         
-        transaction_log.related_object = withdrawal_request
-        transaction_log.save()
-
+        # Run the (simulated) asynchronous fraud check
+        BalanceService._run_fraud_check(withdrawal_request)
+        
         return withdrawal_request
 
     @staticmethod
     @transaction.atomic
-    def approve_withdrawal(request: BalanceWithdrawRequest, admin_user, admin_notes: str = ""):
-        if request.transfer_status != BalanceWithdrawRequest.TransferStatus.PENDING:
-            raise ValidationError("This request has already been processed.")
-
-        request.transfer_status = BalanceWithdrawRequest.TransferStatus.COMPLETED
-        request.admin_notes = admin_notes
-        request.updated_at = timezone.now()
+    def approve_withdrawal(request: BalanceWithdrawRequest, admin_user):
+        if request.transfer_status != BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL:
+            raise ValidationError("This request is not awaiting approval.")
+        
+        request.transfer_status = BalanceWithdrawRequest.TransferStatus.APPROVED
+        request.admin_notes += f"\nManually approved by {admin_user.get_username()} on {timezone.now().strftime('%Y-%m-%d %H:%M')}."
         request.save()
-
-        Transaction.objects.create(
-            user=request.user,
-            transaction_type=Transaction.TransactionType.WITHDRAWAL_COMPLETED,
-            amount=-request.amount,
-            related_object=request
-        )
 
     @staticmethod
     @transaction.atomic
     def reject_withdrawal(request: BalanceWithdrawRequest, admin_user, admin_notes: str):
-        if request.transfer_status != BalanceWithdrawRequest.TransferStatus.PENDING:
-            raise ValidationError("This request has already been processed.")
+        if request.transfer_status not in [
+            BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL,
+            BalanceWithdrawRequest.TransferStatus.REQUESTED
+        ]:
+            raise ValidationError("This request cannot be rejected.")
 
+        original_status = request.transfer_status
         request.transfer_status = BalanceWithdrawRequest.TransferStatus.REJECTED
         request.admin_notes = admin_notes
-        request.updated_at = timezone.now()
         request.save()
 
-        # Return the money to the user's balance
-        user = request.user
-        user.Balance += request.amount
-        user.save(update_fields=['Balance'])
+        # Only return money if it was already in a pending state
+        if original_status == BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL:
+            user = request.user
+            user.Balance += request.amount
+            user.save(update_fields=['Balance'])
 
+            Transaction.objects.create(
+                user=user,
+                transaction_type=Transaction.TransactionType.WITHDRAWAL_CANCELLED,
+                amount=request.amount,
+                related_object=request
+            )
+
+    @staticmethod
+    def process_approved_request(request: BalanceWithdrawRequest):
+        if request.transfer_status != BalanceWithdrawRequest.TransferStatus.APPROVED:
+            raise ValidationError("This request is not approved for processing.")
+
+        # SIMULATE SENDING TO PAYMENT GATEWAY
+        request.transfer_status = BalanceWithdrawRequest.TransferStatus.PROCESSING
+        request.save()
+        
+        # In a real system, you would now get a response from the gateway.
+        # For this simulation, we'll just mark it as complete.
+        request.transfer_status = BalanceWithdrawRequest.TransferStatus.COMPLETED
+        request.save()
+        
         Transaction.objects.create(
-            user=user,
-            transaction_type=Transaction.TransactionType.WITHDRAWAL_CANCELLED,
-            amount=request.amount,
+            user=request.user,
+            transaction_type=Transaction.TransactionType.WITHDRAWAL_COMPLETED,
+            amount=-request.amount,
             related_object=request
         )
