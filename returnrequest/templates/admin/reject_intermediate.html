@@ -1,0 +1,40 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div id="content-main">
+    <form action="" method="post">
+        {% csrf_token %}
+        <h1>{% trans "Reject Withdrawal Requests" %}</h1>
+
+        <div class="module">
+            <p>{% blocktrans %}You are about to reject the following withdrawal requests. Please provide a reason for the rejection, which will be applied to all selected requests.{% endblocktrans %}</p>
+            
+            <div class="form-row">
+                <ul>
+                    {% for req in requests %}
+                    {# ✨ FIX: Use a reliable method to get the user's display name #}
+                    <li>{{ req.user.get_full_name|default:req.user.get_username }} - Amount: {{ req.amount }} ({{ req.transfer_type }})</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            
+            <fieldset class="module aligned">
+                <div class="form-row">
+                    {{ form.admin_notes.errors }}
+                    <label for="id_admin_notes" class="required">{% trans "Reason for Rejection:" %}</label>
+                    {{ form.admin_notes }}
+                </div>
+            </fieldset>
+        </div>
+
+        <div class="submit-row">
+            {% for req in requests %}
+            <input type="hidden" name="_selected_action" value="{{ req.pk }}">
+            {% endfor %}
+            <input type="hidden" name="action" value="reject_requests_with_notes">
+            <input type="submit" name="apply" class="button default" value="{% trans 'Confirm Rejection' %}">
+        </div>
+    </form>
+</div>
+{% endblock %}

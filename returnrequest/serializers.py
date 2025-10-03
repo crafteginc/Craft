@@ -71,6 +71,10 @@ class BalanceWithdrawRequestSerializer(serializers.ModelSerializer):
             'id', 'user', 'transfer_status', 'admin_notes', 
             'created_at', 'updated_at'
         ]
+        extra_kwargs = {
+            'transfer_type': {'required': True},
+            'transfer_number': {'required': True}
+        }
 
     def validate_amount(self, value):
         if value <= 0:
