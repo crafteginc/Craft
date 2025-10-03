@@ -13,6 +13,7 @@ class ReturnRequestAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'order__order_number', 'product__name', 'supplier__user__username')
     readonly_fields = ('id', 'image_thumbnail', 'created_at', 'updated_at', 'amount')
     autocomplete_fields = ['user', 'order', 'product', 'supplier']
+    date_hierarchy = 'created_at'
     
     fieldsets = (
         ('Core Info', {
@@ -35,12 +36,13 @@ class RejectForm(forms.Form):
 
 @admin.register(BalanceWithdrawRequest)
 class BalanceWithdrawRequestAdmin(admin.ModelAdmin):
-    list_display = ('user', 'get_user_balance', 'amount', 'transfer_type', 'transfer_number', 'created_at')
+    list_display = ('user', 'get_user_balance', 'amount', 'transfer_type', 'transfer_number','risk_score')
     list_filter = ('transfer_status', 'transfer_type', 'created_at')
     search_fields = ('user__first_name', 'user__last_name', 'user__email', 'transfer_number')
     readonly_fields = ('id', 'user', 'related_transaction', 'created_at', 'updated_at')
     autocomplete_fields = ['user']
     list_select_related = ['user']
+    date_hierarchy = 'created_at'
     
     fieldsets = (
         ('Request Details', {
@@ -108,3 +110,4 @@ class TransactionAdmin(admin.ModelAdmin):
     search_fields = ('user__username',)
     readonly_fields = ('id', 'created_at')
     autocomplete_fields = ['user']
+    date_hierarchy = 'created_at'

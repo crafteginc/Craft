@@ -202,7 +202,8 @@ class BalanceService:
             request.admin_notes = "Flagged for manual review due to high amount."
         else:
             request.risk_score = 10.0
-            request.transfer_status = BalanceWithdrawRequest.TransferStatus.APPROVED
+            #this transfer_status must be APPROVED but i turned it to AWAITING_APPROVAL to make all transfers manual temporarily
+            request.transfer_status = BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL
         request.save()
 
     @staticmethod
