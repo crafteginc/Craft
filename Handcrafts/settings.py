@@ -1,3 +1,6 @@
+# ==============================================================================
+# CORE DJANGO IMPORTS & ENVIRONMENT SETUP
+# ==============================================================================
 import os
 import dj_database_url
 from datetime import timedelta
@@ -5,56 +8,99 @@ from pathlib import Path
 from environ import Env
 from celery.schedules import crontab
 
+# Initialize the environment variable reader
 env = Env()
+
+# --- Environment Configuration ---
+# Set the default environment to 'production' if not specified
 ENVIRONMENT = env('ENVIRONMENT', default='production')
+# Define the base directory of the project
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Read the .env file for environment-specific variables
 env.read_env(env_file=BASE_DIR / '.env')
 
+
+# ==============================================================================
+# SECURITY & DEPLOYMENT SETTINGS
+# ==============================================================================
+
+# --- Secret Key ---
+# A secret key used for cryptographic signing. Keep this secret!
 SECRET_KEY = env('SECRET_KEY', default='your-default-secret-key')
 
+# --- Debug Mode ---
+# Set to True for development to get detailed error pages.
+# Should ALWAYS be False in production for security.
 if ENVIRONMENT == 'development':
     DEBUG = True
 else:
     DEBUG = False
 
+# --- Host Configuration ---
+# A list of strings representing the host/domain names that this Django site can serve.
 ALLOWED_HOSTS = ['localhost', 'craft.up.railway.app', '127.0.0.1']
+# A list of trusted origins for unsafe requests (e.g., POST).
 CSRF_TRUSTED_ORIGINS = ["https://craft.up.railway.app", "http://craft.up.railway.app"]
 
+
+# ==============================================================================
+# INSTALLED APPLICATIONS
+# ==============================================================================
+# Core Django applications, third-party packages, and your project's apps are listed here.
 INSTALLED_APPS = [
+    # Admin interface enhancements
     'admin_interface',
     'colorfield',
+
+    # ASGI & Channels for WebSockets
     'daphne',
     'channels',
+
+    # CORS headers for cross-origin requests
     'corsheaders',
+
+    # Django core apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'whitenoise.runserver_nostatic', 
+
+    # Static file handling for production
+    'whitenoise.runserver_nostatic',
+
+    # Third-party apps
     'social_django',
+    'rest_framework_swagger',
+    'drf_yasg',
+    'rest_framework',
+    'django_filters',
+    'rest_framework_simplejwt.token_blacklist',
+    'django_celery_beat',
+
+    # Your project's applications
     'accounts',
     'products',
     'course',
     'orders',
     'reviews',
-    'rest_framework_swagger',
-    'drf_yasg',
     'payment',
     'notifications',
     'chatapp',
     'returnrequest',
-    'rest_framework',
-    'django_filters',
-    'rest_framework_simplejwt.token_blacklist',
-    'django_celery_beat', # Add this for Celery Beat
     'recommendations',
 ]
 
+
+# ==============================================================================
+# MIDDLEWARE CONFIGURATION
+# ==============================================================================
+# A list of middleware to be executed for each request/response cycle.
+# Order is important.
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # Add WhiteNoise middleware
+    'whitenoise.middleware.WhiteNoiseMiddleware', # For serving static files
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -65,24 +111,25 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
 ]
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# ==============================================================================
+# AUTHENTICATION & SOCIAL AUTH
+# ==============================================================================
+
+# --- Authentication Backends ---
+# Specifies how users are authenticated.
 AUTHENTICATION_BACKENDS = [
     'social_core.backends.google.GoogleOAuth2',
     'social_core.backends.facebook.FacebookOAuth2',
     'django.contrib.auth.backends.ModelBackend',
 ]
 
+# --- Custom User Model ---
+AUTH_USER_MODEL = 'accounts.User'
+
+# --- Social Auth Settings ---
 SOCIAL_AUTH_LOGIN_REDIRECT_URL = '/accounts/social-complete/'
 SOCIAL_AUTH_NEW_USER_REDIRECT_URL = '/accounts/social-complete/'
-
-
-# STRIPE
-STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY')
-STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY')
-STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET')
-
-# --- Social Auth Configuration ---
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = env('GOOGLE_CLIENT_ID')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = env('GOOGLE_CLIENT_SECRET')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
@@ -90,15 +137,12 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
     'https://www.googleapis.com/auth/userinfo.profile',
 ]
 SOCIAL_AUTH_PASSWORD = env('SOCIAL_AUTH_PASSWORD', default='craft-social-login')
-
-
 SOCIAL_AUTH_FACEBOOK_KEY = env('SOCIAL_AUTH_FACEBOOK_KEY')
 SOCIAL_AUTH_FACEBOOK_SECRET = env('SOCIAL_AUTH_FACEBOOK_SECRET')
 SOCIAL_AUTH_FACEBOOK_SCOPE = ['email', 'public_profile']
 SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
     'fields': 'id, name, email, first_name, last_name'
 }
-
 SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_details',
     'social_core.pipeline.social_auth.social_uid',
@@ -108,13 +152,12 @@ SOCIAL_AUTH_PIPELINE = (
     'accounts.pipeline.create_temp_user',
 )
 
-EMAIL_BACKEND = env('EMAIL_BACKEND')
-EMAIL_HOST = env('EMAIL_HOST')
-EMAIL_PORT = env('EMAIL_PORT')
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = env('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 
+# ==============================================================================
+# REST FRAMEWORK & JWT
+# ==============================================================================
+
+# --- Django Rest Framework ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -124,10 +167,7 @@ REST_FRAMEWORK = {
     ]
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "https://craft.up.railway.app",
-]
-
+# --- Simple JWT Settings ---
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -137,16 +177,22 @@ SIMPLE_JWT = {
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
 
-AUTH_USER_MODEL = 'accounts.User'
 
+# ==============================================================================
+# URL & APPLICATION CONFIGURATION
+# ==============================================================================
+
+# The root URL configuration for the project.
 ROOT_URLCONF = 'Handcrafts.urls'
 
-if ENVIRONMENT != 'development':
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+# The entry points for WSGI and ASGI servers.
+WSGI_APPLICATION = 'Handcrafts.wsgi.application'
+ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
+
+# ==============================================================================
+# TEMPLATES
+# ==============================================================================
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -165,29 +211,48 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'Handcrafts.wsgi.application'
-ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
-# === REDIS & CELERY CONFIGURATION ===
+# ==============================================================================
+# DATABASE CONFIGURATION
+# ==============================================================================
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
+# Use Postgres in production. Set POSTGRES_LOCALLY to True to use it in development.
+POSTGRES_LOCALLY = True
+if ENVIRONMENT == 'production' or POSTGRES_LOCALLY:
+    DATABASES['default'] = dj_database_url.parse(env('DATABASE_URL'))
+
+
+# ==============================================================================
+# REDIS, CHANNELS & CELERY
+# ==============================================================================
+
+# --- Redis, Channels, and Caching Configuration ---
 if ENVIRONMENT == 'development':
-    # For local testing, use the simple in-memory layer
+    # For local testing, use in-memory backends.
     CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
     CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
     SESSION_ENGINE = "django.contrib.sessions.backends.db"
 else:
-    # For production on Railway, use Redis
+    # For production on Railway, use Redis.
     REDIS_URL = env('REDIS_URL')
 
     # Celery configuration
     CELERY_BROKER_URL = REDIS_URL
     CELERY_RESULT_BACKEND = REDIS_URL
 
+    # Channels configuration
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {"hosts": [REDIS_URL]},
         },
     }
+    # Caching configuration
     CACHES = {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
@@ -195,30 +260,83 @@ else:
             "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
         }
     }
+    # Session configuration
     SESSION_ENGINE = "django.contrib.sessions.backends.cache"
     SESSION_CACHE_ALIAS = "default"
 
-# --- DATABASE CONFIGURATION ---
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
-POSTGRES_LOCALLY = False # Set to False for production
-if ENVIRONMENT == 'production' or POSTGRES_LOCALLY:
-    DATABASES['default'] = dj_database_url.parse(env('DATABASE_URL'))
-
-# Celery Beat Settings
+# --- Celery Beat Scheduler ---
+# Defines periodic tasks for Celery.
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_BEAT_SCHEDULE = {
     'update-recommendations-daily': {
         'task': 'recommendations.tasks.update_recommendations_task',
-        'schedule': crontab(hour=1, minute=30),
+        'schedule': crontab(hour=1, minute=30), # Runs every day at 1:30 AM
     },
 }
 
-# --- PASSWORD VALIDATION ---
+
+# ==============================================================================
+# STATIC & MEDIA FILES
+# ==============================================================================
+
+# --- Static Files ---
+# URL to use when referring to static files.
+STATIC_URL = '/static/'
+# The absolute path to the directory where collectstatic will collect static files.
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Storage backend for static files, optimized for production.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# --- Media Files ---
+# The directory where user-uploaded files will be stored.
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# The URL that handles the media served from MEDIA_ROOT.
+MEDIA_URL = '/media/'
+
+
+# ==============================================================================
+# EXTERNAL SERVICES
+# ==============================================================================
+
+# --- Stripe ---
+STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY')
+STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY')
+STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET')
+
+# --- Email ---
+EMAIL_BACKEND = env('EMAIL_BACKEND')
+EMAIL_HOST = env('EMAIL_HOST')
+EMAIL_PORT = env('EMAIL_PORT')
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = env('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
+
+
+# ==============================================================================
+# INTERNATIONALIZATION & MISCELLANEOUS
+# ==============================================================================
+
+# --- Internationalization ---
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# --- CORS ---
+# A list of origins that are authorized to make cross-site HTTP requests.
+CORS_ALLOWED_ORIGINS = [
+    "https://craft.up.railway.app",
+]
+
+# --- Production Security ---
+# These settings are enabled when not in a development environment.
+if ENVIRONMENT != 'development':
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# --- Password Validation ---
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -226,17 +344,6 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# --- INTERNATIONALIZATION ---
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
-USE_I18N = True
-USE_TZ = True
-
-# --- STATIC & MEDIA FILES ---
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-MEDIA_URL = '/media/'
-
-# --- DEFAULT PRIMARY KEY ---
+# --- Default Primary Key ---
+# The default primary key field type to use for models.
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
