@@ -45,7 +45,7 @@ class ProductsByCategory(ListAPIView):
             return []
 
 class ProductsViewSet(ModelViewSet):
-    queryset = Product.objects.filter( Stock__gt = 0 )
+    queryset = Product.objects.filter(Stock__gt=0).select_related('Supplier', 'Category').prefetch_related('images')
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ProductFilter
@@ -77,7 +77,6 @@ class ProductsViewSet(ModelViewSet):
                 user = follow.follower.user
                 message = f"Your followed supplier {supplier_instance.user.get_full_name()} has a new product: {product.ProductName}"
                 create_notification_for_user(user=user, message=message, related_object=product)
-
 
     def perform_update(self, serializer):
         instance = self.get_object()

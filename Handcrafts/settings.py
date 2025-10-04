@@ -3,6 +3,7 @@ import dj_database_url
 from datetime import timedelta
 from pathlib import Path
 from environ import Env
+from celery.schedules import crontab
 
 env = Env()
 ENVIRONMENT = env('ENVIRONMENT', default='production')
@@ -23,7 +24,7 @@ INSTALLED_APPS = [
     'admin_interface',
     'colorfield',
     'daphne',
-    'channels',  
+    'channels',
     'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -31,6 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'whitenoise.runserver_nostatic', 
     'social_django',
     'accounts',
     'products',
@@ -46,7 +48,24 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_filters',
     'rest_framework_simplejwt.token_blacklist',
+    'django_celery_beat', # Add this for Celery Beat
+    'recommendations',
 ]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Add WhiteNoise middleware
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+]
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 AUTHENTICATION_BACKENDS = [
     'social_core.backends.google.GoogleOAuth2',
@@ -86,7 +105,7 @@ SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.auth_allowed',
     'social_core.pipeline.social_auth.social_user',
     'social_core.pipeline.user.get_username',
-    'accounts.pipeline.create_temp_user',   
+    'accounts.pipeline.create_temp_user',
 )
 
 EMAIL_BACKEND = env('EMAIL_BACKEND')
@@ -120,17 +139,6 @@ SIMPLE_JWT = {
 
 AUTH_USER_MODEL = 'accounts.User'
 
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.locale.LocaleMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-]
 ROOT_URLCONF = 'Handcrafts.urls'
 
 if ENVIRONMENT != 'development':
@@ -160,7 +168,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'Handcrafts.wsgi.application'
 ASGI_APPLICATION = 'Handcrafts.asgi.application'
 
-# === REDIS CONFIGURATION ===
+# === REDIS & CELERY CONFIGURATION ===
 if ENVIRONMENT == 'development':
     # For local testing, use the simple in-memory layer
     CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
@@ -169,6 +177,11 @@ if ENVIRONMENT == 'development':
 else:
     # For production on Railway, use Redis
     REDIS_URL = env('REDIS_URL')
+
+    # Celery configuration
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
+
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -192,9 +205,18 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
-POSTGRES_LOCALLY = True
+POSTGRES_LOCALLY = False # Set to False for production
 if ENVIRONMENT == 'production' or POSTGRES_LOCALLY:
     DATABASES['default'] = dj_database_url.parse(env('DATABASE_URL'))
+
+# Celery Beat Settings
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_BEAT_SCHEDULE = {
+    'update-recommendations-daily': {
+        'task': 'recommendations.tasks.update_recommendations_task',
+        'schedule': crontab(hour=1, minute=30),
+    },
+}
 
 # --- PASSWORD VALIDATION ---
 AUTH_PASSWORD_VALIDATORS = [
