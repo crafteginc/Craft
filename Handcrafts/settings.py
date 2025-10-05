@@ -79,7 +79,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'django_celery_beat',
 
-    # Your project's applications
+    # project's applications
     'accounts',
     'products',
     'course',

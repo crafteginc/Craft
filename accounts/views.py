@@ -4,9 +4,24 @@ import json
 from django.shortcuts import get_object_or_404
 from .permissions import IsCustomerorSupplier
 from . import permissions
-from .serializers import CustomerRegistrationSerializer,SupplierRegistrationSerializer,DeliveryRegistrationSerializer,AddressSerializer
-from .serializers import LoginSerializer,SetNewPasswordSerializer,LogoutUserSerializer,GoogleSignInSerializer,SocialAccountCompleteSerializer,EmailVerificationSerializer
-from .serializers import CustomerProfileSerializer,deliveryProfileSerializer,SupplierProfileSerializer,CraftersSerializer,SupplierDocumentSerializer,deliveryDocumentSerializer
+from .serializers import (
+    AddressSerializer,
+    CraftersSerializer,
+    CustomerProfileSerializer,
+    CustomerRegistrationSerializer,
+    deliveryDocumentSerializer,
+    deliveryProfileSerializer,
+    DeliveryRegistrationSerializer,
+    EmailVerificationSerializer,
+    GoogleSignInSerializer,
+    LoginSerializer,
+    LogoutUserSerializer,
+    SetNewPasswordSerializer,
+    SocialAccountCompleteSerializer,
+    SupplierDocumentSerializer,
+    SupplierProfileSerializer,
+    SupplierRegistrationSerializer,
+)
 from .services import complete_social_registration
 from .utils import send_generated_otp_to_email,OneTimePassword
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -26,6 +41,8 @@ from django.core.mail import EmailMessage
 import random
 from django.conf import settings
 from asgiref.sync import sync_to_async
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django.contrib.contenttypes.models import ContentType
 
 class ResendOtp(GenericAPIView):
@@ -280,7 +297,7 @@ class SuppliersList(ListAPIView):
         # Exclude the logged-in user from the queryset
         user = self.request.user
         return Supplier.objects.filter(user__is_verified=True, user__is_active=True).exclude(user=user).order_by('id')
-
+    @method_decorator(cache_page(60 * 15))
     def get(self, request, *args, **kwargs):
         response = super().get(request, *args, **kwargs)
 
@@ -327,12 +344,14 @@ class SuppliersList(ListAPIView):
 
 class TrendingSuppliersAPIView(APIView):
     permission_classes = [IsCustomerorSupplier] 
+    @method_decorator(cache_page(60 * 15))
     def get(self, request, format=None):
         trending_suppliers = Supplier.objects.filter(user__is_verified=True, user__is_active=True).order_by('-Rating','-Orders')[:10]  # Fetch top 10 suppliers based on rating
         serializer = CraftersSerializer(trending_suppliers, many=True)
         return Response(serializer.data)
     
 class SupplierDetail(APIView):
+    @method_decorator(cache_page(60 * 15))
     def get(self, request, pk):
         supplier = get_object_or_404(Supplier, pk=pk)
 
