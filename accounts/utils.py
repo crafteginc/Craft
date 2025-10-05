@@ -1,26 +1,28 @@
 import random
-from django.core.mail import EmailMessage, send_mail
+import logging
+from django.core.mail import EmailMessage
 from django.conf import settings
 from .models import User, OneTimePassword
-from .tasks import send_formatted_email # Updated import
+from .tasks import send_formatted_email
 from notifications.services import create_notification_for_user
 
+# Get an instance of a logger
+logger = logging.getLogger(__name__)
 
 def send_generated_otp_to_email(email, request):
     """
-    Generates an OTP, saves it, and triggers an asynchronous task to send a formatted email.
-    Falls back to synchronous sending if the task fails.
+    Generates an OTP and triggers an asynchronous task to send a formatted email.
+    Falls back to synchronous sending if the Celery task fails.
     """
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        print(f"Attempted to send OTP to non-existent user: {email}")
+        logger.warning(f"Attempted to send OTP to non-existent user: {email}")
         return
 
     subject = "One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
     
-    # Create the rich, user-friendly email body
     email_body = f"""
     Hi {user.first_name},
 
@@ -38,18 +40,16 @@ def send_generated_otp_to_email(email, request):
     OneTimePassword.objects.create(user=user, otp=otp)
     
     try:
-        # Asynchronously send the FULLY FORMATTED email using the updated Celery task
+        # Asynchronously send the formatted email using the Celery task
         send_formatted_email.delay(
             subject=subject,
             body=email_body,
             from_email=from_email,
             recipient_list=[email]
         )
-        print(f"Celery task dispatched to send OTP to {email}")
-
     except Exception as e:
-        # Log the error and fall back to synchronous email sending with the SAME formatted email
-        print(f"Celery task failed for {email}: {e}. Falling back to synchronous email.")
+        # Log the Celery connection error and fall back to synchronous sending
+        logger.error(f"Celery task dispatch failed for {email}: {e}. Falling back to synchronous email.", exc_info=True)
         try:
             email_message = EmailMessage(
                 subject=subject,
@@ -59,9 +59,10 @@ def send_generated_otp_to_email(email, request):
             )
             email_message.send()
         except Exception as sync_e:
-            print(f"Synchronous email fallback also failed for {email}: {sync_e}")
+            # Log the failure of the synchronous fallback
+            logger.error(f"Synchronous email fallback also failed for {email}: {sync_e}", exc_info=True)
 
-    # Send the notification regardless of email success
+    # Send a notification to the user
     create_notification_for_user(
         user=user,
         message="Your verification passcode has been sent to your email."
@@ -70,7 +71,7 @@ def send_generated_otp_to_email(email, request):
 
 def send_normal_email(data):
     """
-    A utility function to send other types of emails, can also be converted to use the async task.
+    A utility function to asynchronously send other types of emails.
     """
     subject = data.get('email_subject', 'No Subject')
     body = data.get('email_body', '')
@@ -81,7 +82,7 @@ def send_normal_email(data):
 
     from_email = settings.EMAIL_HOST_USER
     
-    # You can use the same async task here for consistency!
+    # Use the same async task for consistency
     send_formatted_email.delay(
         subject=subject,
         body=body,
@@ -89,11 +90,9 @@ def send_normal_email(data):
         recipient_list=[recipient]
     )
 
-
 class Google():
     @staticmethod
     def validate(access_token):
-        # This part is unchanged
         try:
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token
@@ -102,5 +101,5 @@ class Google():
             if 'accounts.google.com' in id_info.get('iss', ''):
                 return id_info
         except Exception as e:
-            print(f"Google token validation error: {e}")
+            logger.error(f"Google token validation error: {e}", exc_info=True)
             return "the token is either invalid or has expired"
