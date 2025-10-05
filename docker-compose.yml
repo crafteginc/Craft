@@ -5,20 +5,39 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python manage.py runserver 0.0.0.0:8000
+    command: gunicorn Handcrafts.wsgi:application --bind 0.0.0.0:8000
     ports:
       - "8000:8000"
     volumes:
       - .:/app
     environment:
-      - DEBUG=1
+      - DEBUG=0
       - ENVIRONMENT=production
-      - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///db.sqlite3
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - EMAIL_BACKEND=${EMAIL_BACKEND}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USE_TLS=True
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
     depends_on:
+      - db
       - redis
       - celery
       - celery_beat
+
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: handcrafts_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
   redis:
     image: redis:7
@@ -29,12 +48,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A Handcrafts worker --loglevel=info
+    command: celery -A Handcrafts worker -l info -P solo
     volumes:
       - .:/app
     environment:
       - ENVIRONMENT=production
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
       - EMAIL_BACKEND=${EMAIL_BACKEND}
       - EMAIL_HOST=${EMAIL_HOST}
       - EMAIL_PORT=${EMAIL_PORT}
@@ -42,17 +62,23 @@ services:
       - EMAIL_HOST_USER=${EMAIL_HOST_USER}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
     depends_on:
+      - db
       - redis
 
   celery_beat:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A Handcrafts beat --loglevel=info
+    command: celery -A Handcrafts beat -l info
     volumes:
       - .:/app
     environment:
       - ENVIRONMENT=production
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
     depends_on:
+      - db
       - redis
+
+volumes:
+  postgres_data:
