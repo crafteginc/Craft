@@ -1,16 +1,52 @@
 version: '3.11.9'
+
 services:
   django:
     build: 
       context: .
       dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"
     volumes:
       - .:/app
     environment:
       - DEBUG=1
+      - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///db.sqlite3
+    depends_on:
+      - redis
+      - celery
+      - celery_beat
+
   redis:
-    image: redis
+    image: redis:7
     ports:
       - "6379:6379"
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A Handcrafts worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A Handcrafts beat --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis

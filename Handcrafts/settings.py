@@ -26,15 +26,13 @@ env.read_env(env_file=BASE_DIR / '.env')
 
 # --- Secret Key ---
 # A secret key used for cryptographic signing. Keep this secret!
-SECRET_KEY = env('SECRET_KEY', default='your-default-secret-key')
+SECRET_KEY = env('SECRET_KEY')
 
 # --- Debug Mode ---
 # Set to True for development to get detailed error pages.
 # Should ALWAYS be False in production for security.
-if ENVIRONMENT == 'development':
-    DEBUG = True
-else:
-    DEBUG = False
+DEBUG = env.bool('DEBUG', default=False)
+
 
 # --- Host Configuration ---
 # A list of strings representing the host/domain names that this Django site can serve.
@@ -216,53 +214,47 @@ TEMPLATES = [
 # DATABASE CONFIGURATION
 # ==============================================================================
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.parse(env('DATABASE_URL'))
 }
-# Use Postgres in production. Set POSTGRES_LOCALLY to True to use it in development.
-POSTGRES_LOCALLY = True
-if ENVIRONMENT == 'production' or POSTGRES_LOCALLY:
-    DATABASES['default'] = dj_database_url.parse(env('DATABASE_URL'))
 
 
 # ==============================================================================
 # REDIS, CHANNELS & CELERY
 # ==============================================================================
 
-# --- Redis, Channels, and Caching Configuration ---
-if ENVIRONMENT == 'development':
-    # For local testing, use in-memory backends.
-    CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
-    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
-    SESSION_ENGINE = "django.contrib.sessions.backends.db"
-else:
-    # For production on Railway, use Redis.
-    REDIS_URL = env('REDIS_URL')
+REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/0')
 
-    # Celery configuration
-    CELERY_BROKER_URL = REDIS_URL
-    CELERY_RESULT_BACKEND = REDIS_URL
+# --- Celery configuration ---
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Cairo'
 
-    # Channels configuration
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {"hosts": [REDIS_URL]},
+# --- Channels configuration ---
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
         },
-    }
-    # Caching configuration
-    CACHES = {
-        "default": {
-            "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": REDIS_URL,
-            "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+    },
+}
+
+# --- Caching configuration ---
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
     }
-    # Session configuration
-    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-    SESSION_CACHE_ALIAS = "default"
+}
+# --- Session configuration ---
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
 
 # --- Celery Beat Scheduler ---
 # Defines periodic tasks for Celery.
@@ -319,13 +311,15 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 # --- INTERNATIONALIZATION ---
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Africa/Cairo'
-USE_I18N = True
+USE_I_18_N = True
 USE_TZ = True
 
 # --- CORS ---
 # A list of origins that are authorized to make cross-site HTTP requests.
 CORS_ALLOWED_ORIGINS = [
     "https://craft.up.railway.app",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 # --- Production Security ---

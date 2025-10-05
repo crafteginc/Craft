@@ -1,5 +1,5 @@
 import random
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMessage,send_mail
 from django.conf import settings
 import requests
 from .models import User, OneTimePassword
@@ -13,19 +13,44 @@ from notifications.services import create_notification_for_user
 
 
 def send_generated_otp_to_email(email, request):
-    user = User.objects.get(email=email)
+    subject = "One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
-    OneTimePassword.objects.create(user=user, otp=otp)
+    user = User.objects.get(email=email)
+    email_body = f"""
+    Hi {user.first_name},
 
-    # Pass the otp to the celery task
-    send_otp_email.delay(email, otp)
+    Thanks for signing up on CraftEG! 
+
+    Please verify your email using 
+    the following One-Time Passcode 
+    (OTP): {otp}
+
+    Best regards,  
+    The CraftEG Team
+    """
+    from_email = settings.EMAIL_HOST_USER
+    OneTimePassword.objects.create(user=user, otp=otp)
+    
+    try:
+        # Asynchronously send the OTP email using Celery
+        send_otp_email.delay(email, otp)
+    except Exception as e:
+        # Log the error and fall back to synchronous email sending
+        print(f"Celery task failed: {e}")
+        send_mail(
+            subject,
+            f"Your OTP is: {otp}",
+            from_email,
+            [email],
+            fail_silently=False,
+        )
+
 
     # ✨ NOTIFICATION: Inform the user that an OTP has been sent
     create_notification_for_user(
         user=user,
         message="Your verification passcode has been sent to your email."
     )
-
 
 def send_normal_email(data):
     email = EmailMessage(
