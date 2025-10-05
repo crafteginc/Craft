@@ -34,7 +34,7 @@ def send_generated_otp_to_email(email, request):
     The CraftEG Team
     """
 
-    from_email = settings.EMAIL_HOST_USER
+    from_email = settings.DEFAULT_FROM_EMAIL
 
     try:
         send_formatted_email.delay(
@@ -71,7 +71,7 @@ def send_normal_email(data):
     if not recipient:
         return
 
-    from_email = settings.EMAIL_HOST_USER
+    from_email = settings.DEFAULT_FROM_EMAIL
 
     try:
         send_formatted_email.delay(

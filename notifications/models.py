@@ -12,7 +12,7 @@ class Notification(models.Model):
 
     # Generic foreign key to link to any object (e.g., a ReturnRequest or an Order)
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True, blank=True)
-    object_id = models.PositiveIntegerField(null=True, blank=True)
+    object_id = models.CharField(max_length=36, null=True, blank=True)
     related_object = GenericForeignKey('content_type', 'object_id')
 
     def __str__(self):
