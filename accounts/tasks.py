@@ -1,15 +1,24 @@
 from celery import shared_task
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage
 from django.conf import settings
 
-
-@shared_task
-def send_otp_email(email, otp):
+@shared_task(name="send_formatted_email_task")
+def send_formatted_email(subject, body, from_email, recipient_list):
     """
-    Asynchronously sends an OTP email.
+    Asynchronously sends a fully formatted email using EmailMessage.
+    This is a generic task that can be used for any email.
     """
-    subject = "Your OTP for Registration"
-    message = f"Your OTP is: {otp}"
-    from_email = settings.EMAIL_HOST_USER
-    recipient_list = [email]
-    send_mail(subject, message, from_email, recipient_list)
+    try:
+        email = EmailMessage(
+            subject=subject,
+            body=body,
+            from_email=from_email,
+            to=recipient_list
+        )
+        email.send()
+        return f"Email sent successfully to {recipient_list[0]}"
+    except Exception as e:
+        # Log the error for debugging purposes
+        print(f"Failed to send email to {recipient_list[0]}: {e}")
+        # You can add more robust logging here if needed
+        return f"Failed to send email to {recipient_list[0]}"
