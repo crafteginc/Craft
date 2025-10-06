@@ -12,18 +12,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.models import Address
+from notifications.services import create_notification_for_user
 from products.models import Product
 from products.views import StandardResultsSetPagination
 from returnrequest.models import Transaction
 
-from .services import (
-    _calculate_all_order_totals_helper, _validate_cart_stock,
-    _validate_request_data, create_order_from_cart, get_craft_user_by_email,
-    get_warehouse_by_name
-)
-
-from .models import (Cart, CartItems, Coupon, Order, Shipment, Warehouse,
-                   Wishlist, WishlistItem)
+from .models import Cart, CartItems, Coupon, Order, Shipment, Warehouse, Wishlist, WishlistItem
 from .permissions import DeliveryContractProvided, IsSupplier
 from .serializers import (
     AddCartItemSerializer, AddWishlistItemSerializer, CartItemSerializer,
@@ -33,7 +27,13 @@ from .serializers import (
     SupplierOrderRetrieveSerializer, UpdateCartItemSerializer,
     WarehouseSerializer, WishlistItemSerializer, WishlistSerializer
 )
-from .tasks import process_payments_task, send_order_notification_task
+from .services import (
+    _calculate_all_order_totals_helper, _validate_cart_stock,
+    _validate_request_data, get_craft_user_by_email, get_warehouse_by_name
+)
+from .tasks import (
+    create_order_task, process_payments_task, send_order_notification_task
+)
 
 
 class WishlistViewSet(viewsets.ModelViewSet):
@@ -297,32 +297,33 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
         payment_method = request.data.get("payment_method", "").strip()
 
         _validate_request_data(cart, address_id, payment_method)
-        
+        address = Address.objects.filter(user=request.user, id=address_id).first()
+        cart_items = CartItems.objects.filter(CartID=cart)
+
+        _validate_cart_stock(cart_items)
+
         if payment_method == Order.PaymentMethod.CREDIT_CARD:
             return Response({
                 "message": "Redirecting to payment gateway...",
                 "status": "pending_payment"
             }, status=status.HTTP_200_OK)
 
-        try:
-            order = create_order_from_cart(
-                user=request.user,
-                cart=cart,
-                address_id=address_id,
-                coupon_code=coupon_code,
-                payment_method=payment_method
-            )
+        if payment_method == Order.PaymentMethod.BALANCE:
+            totals = _calculate_all_order_totals_helper(cart_items, coupon_code, address, request.user)
+            if request.user.Balance < totals['final_amount']:
+                raise ValidationError({"message": "Insufficient balance for this order."})
 
-            return Response({
-                "message": "Order Created Successfully",
-                "order_id": str(order.id),
-                "Total amount": order.total_amount,
-                "Discount amount": order.discount_amount,
-                "Delivery Fee": order.delivery_fee,
-                "final_amount": order.final_amount
-            }, status=status.HTTP_201_CREATED)
-        except ValidationError as e:
-            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        create_order_task.delay(
+            user_id=request.user.id,
+            cart_id=cart.id,
+            address_id=address_id,
+            coupon_code=coupon_code,
+            payment_method=payment_method
+        )
+
+        return Response({
+            "message": "Order Created Successfully",
+        }, status=status.HTTP_202_ACCEPTED)
 
 
 class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
