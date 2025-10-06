@@ -264,6 +264,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'recommendations.tasks.update_recommendations_task',
         'schedule': crontab(hour=1, minute=30), # Runs every day at 1:30 AM
     },
+    'cancel-pending-orders': {
+        'task': 'orders.tasks.cancel_pending_credit_card_orders_task',
+        'schedule': crontab(hour=0, minute=0),  # Run every day at midnight
+    },
 }
 
 

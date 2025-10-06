@@ -1,7 +1,6 @@
 from django.urls import path, include
-from . import views
 from rest_framework.routers import DefaultRouter
-
+from . import views
 
 router = DefaultRouter()
 router.register('whishlists', views.WishlistViewSet, basename='whishlist')
@@ -16,7 +15,8 @@ router.register('return-orders-products', views.ReturnOrdersProductsViewSet, bas
 urlpatterns = [
     path('', include(router.urls)),
     path('warehouses/', views.WarehouseListView.as_view(), name='warehouse-list'),
-    
-    path('orders/supplier-orders/<uuid:pk>/', views.OrderViewSet.as_view({'get': 'retrieve_supplier_order'}), name='supplier-orders-details'),
-    path('orders/supplier-orders/<uuid:pk>/ready-to-ship/', views.OrderViewSet.as_view({'post': 'ready_to_ship'}), name='ready-to-ship'),
+    path('orders/supplier-orders/<uuid:pk>/', views.OrderViewSet.as_view({'get': 'retrieve_supplier_order'}),
+         name='supplier-orders-details'),
+    path('orders/supplier-orders/<uuid:pk>/ready-to-ship/', views.OrderViewSet.as_view({'post': 'ready_to_ship'}),
+         name='ready-to-ship'),
 ]

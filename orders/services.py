@@ -8,8 +8,6 @@ from .models import Order,Warehouse, CartItems, OrderItem, Shipment, ShipmentIte
 from decimal import Decimal
 from collections import defaultdict
 from returnrequest.models import Transaction
-
-# ✨ NEW: Import the notification service
 from notifications.services import create_notification_for_user
 
 
@@ -366,6 +364,3 @@ def _update_product_stock(cart_items):
             item.Product.Stock = F('Stock') - item.Quantity
             item.Product.save(update_fields=['Stock'])
 
-def _send_order_notification(user, order_id):
-        # ✨ DEPRECATED: This function is replaced by direct calls to the notification service
-        pass

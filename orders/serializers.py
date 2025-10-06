@@ -1,5 +1,3 @@
-# orders/serializers.py
-
 from .models import Order, OrderItem, Cart, CartItems, Wishlist, WishlistItem, Warehouse, Shipment, ShipmentItem
 from accounts.serializers import AddressSerializer
 from products.models import Product
