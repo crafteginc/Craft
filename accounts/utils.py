@@ -1,6 +1,6 @@
 import random
-from django.core.mail import EmailMessage
 from django.conf import settings
+from django.core.mail import EmailMessage
 from .models import User, OneTimePassword
 from .tasks import send_formatted_email
 from notifications.services import create_notification_for_user
@@ -9,7 +9,7 @@ from notifications.services import create_notification_for_user
 def send_generated_otp_to_email(email, request):
     """
     Generate and send OTP to the user's email.
-    Uses Celery if available, falls back to direct send otherwise.
+    Uses Celery + Resend API (if configured), otherwise falls back to Django Email.
     """
     try:
         user = User.objects.get(email=email)
@@ -37,21 +37,23 @@ def send_generated_otp_to_email(email, request):
     from_email = settings.DEFAULT_FROM_EMAIL
 
     try:
+        # Try sending asynchronously via Celery + Resend
         send_formatted_email.delay(
             subject=subject,
             body=email_body,
             from_email=from_email,
-            recipient_list=email  
+            recipient_list=email
         )
-    except Exception:
-        # Fallback if Celery is not running
+    except Exception as e:
+        print(f"⚠️ Celery or Resend failed, using fallback SMTP. Reason: {e}")
+        # Fallback to direct Django email
         email_message = EmailMessage(
             subject=subject,
             body=email_body,
             from_email=from_email,
             to=[email]
         )
-        email_message.send()
+        email_message.send(fail_silently=False)
 
     # Create an in-app notification
     create_notification_for_user(
@@ -62,13 +64,14 @@ def send_generated_otp_to_email(email, request):
 
 def send_normal_email(data):
     """
-    Send a simple email (e.g., notifications or updates).
+    Send a general-purpose email (notifications, updates, etc.).
     """
     subject = data.get('email_subject', 'No Subject')
     body = data.get('email_body', '')
     recipient = data.get('to_email')
 
     if not recipient:
+        print("⚠️ Email recipient not provided.")
         return
 
     from_email = settings.DEFAULT_FROM_EMAIL
@@ -78,21 +81,22 @@ def send_normal_email(data):
             subject=subject,
             body=body,
             from_email=from_email,
-            recipient_list=recipient  
+            recipient_list=recipient
         )
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ Celery or Resend failed, fallback to SMTP. Reason: {e}")
         email_message = EmailMessage(
             subject=subject,
             body=body,
             from_email=from_email,
             to=[recipient]
         )
-        email_message.send()
+        email_message.send(fail_silently=False)
 
 
 class Google:
     """
-    Helper for verifying Google OAuth2 tokens.
+    Helper class for verifying Google OAuth2 tokens.
     """
     @staticmethod
     def validate(access_token):

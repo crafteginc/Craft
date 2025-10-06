@@ -302,7 +302,7 @@ STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET')
 # --- Email ---
 EMAIL_BACKEND = "django_resend.ResendEmailBackend"
 RESEND_API_KEY = env('resend')
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL')
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "CraftEG <onboarding@resend.dev>")
 
 # ==============================================================================
 # INTERNATIONALIZATION & MISCELLANEOUS
