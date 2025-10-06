@@ -69,7 +69,7 @@ class ResendOtp(GenericAPIView):
                     f"The CraftEG Team"
                 )
 
-            from_email = settings.EMAIL_HOST_USER
+            from_email = settings.DEFAULT_FROM_EMAIL
             to_email = [user.email]
             email = EmailMessage(subject, email_body, from_email, to_email)
             email.send()
@@ -487,7 +487,7 @@ class PasswordResetRequestView(APIView):
                 f"Best regards,\n"
                 f"Craft EG Team"
             )
-            from_email = settings.EMAIL_HOST_USER
+            from_email = settings.DEFAULT_FROM_EMAIL
             to_email = [user.email]
 
             try:
