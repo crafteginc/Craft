@@ -4,7 +4,11 @@ from django.core.mail import EmailMessage
 
 @shared_task(name="send_formatted_email_task")
 def send_formatted_email(subject, body, from_email, recipient_list):
+    """
+    Sends an email asynchronously using Celery.
+    """
     try:
+        # Ensure recipient_list is a list of strings, as expected by EmailMessage
         if isinstance(recipient_list, str):
             recipient_list = [recipient_list]
 

@@ -8,8 +8,7 @@ from notifications.services import create_notification_for_user
 
 def send_generated_otp_to_email(email, request):
     """
-    Generate and send OTP to the user's email.
-    Uses Celery if available, falls back to direct send otherwise.
+    Generate and send OTP to the user's email asynchronously using Celery.
     """
     try:
         user = User.objects.get(email=email)
@@ -30,28 +29,18 @@ def send_generated_otp_to_email(email, request):
 
     {otp}
 
-    Best regards,  
+    Best regards,
     The CraftEG Team
     """
 
     from_email = settings.DEFAULT_FROM_EMAIL
 
-    try:
-        send_formatted_email.delay(
-            subject=subject,
-            body=email_body,
-            from_email=from_email,
-            recipient_list=email  
-        )
-    except Exception:
-        # Fallback if Celery is not running
-        email_message = EmailMessage(
-            subject=subject,
-            body=email_body,
-            from_email=from_email,
-            to=[email]
-        )
-        email_message.send()
+    send_formatted_email.delay(
+        subject=subject,
+        body=email_body,
+        from_email=from_email,
+        recipient_list=[email]  
+    )
 
     # Create an in-app notification
     create_notification_for_user(
@@ -62,7 +51,7 @@ def send_generated_otp_to_email(email, request):
 
 def send_normal_email(data):
     """
-    Send a simple email (e.g., notifications or updates).
+    Send a simple email (e.g., notifications or updates) asynchronously.
     """
     subject = data.get('email_subject', 'No Subject')
     body = data.get('email_body', '')
@@ -73,21 +62,12 @@ def send_normal_email(data):
 
     from_email = settings.DEFAULT_FROM_EMAIL
 
-    try:
-        send_formatted_email.delay(
-            subject=subject,
-            body=body,
-            from_email=from_email,
-            recipient_list=recipient  
-        )
-    except Exception:
-        email_message = EmailMessage(
-            subject=subject,
-            body=body,
-            from_email=from_email,
-            to=[recipient]
-        )
-        email_message.send()
+    send_formatted_email.delay(
+        subject=subject,
+        body=body,
+        from_email=from_email,
+        recipient_list=recipient
+    )
 
 
 class Google:
