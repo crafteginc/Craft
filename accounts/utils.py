@@ -1,59 +1,43 @@
 import random
+import asyncio
 from django.core.mail import EmailMessage
 from django.conf import settings
+import requests
 from .models import User, OneTimePassword
-from .tasks import send_formatted_email
+import requests
+from google.auth.transport import requests
+from google.oauth2 import id_token
+from accounts.models import User
+from django.contrib.auth import authenticate
+from django.conf import settings
+from rest_framework.exceptions import AuthenticationFailed
 from notifications.services import create_notification_for_user
 
 
 def send_generated_otp_to_email(email, request):
-    """
-    Generate and send OTP to the user's email.
-    Uses Celery if available, falls back to direct send otherwise.
-    """
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return
-
-    # Generate a 4-digit OTP
+    subject = "One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
-    OneTimePassword.objects.create(user=user, otp=otp)
-
-    subject = "One-Time Passcode for Email Verification"
+    user = User.objects.get(email=email) 
     email_body = f"""
-    Hi {user.first_name},
+Hi {user.first_name},
 
-    Thanks for signing up on CraftEG!
+Thank you for signing up with CraftEG!
 
-    Please verify your email using the following One-Time Passcode (OTP):
+To verify your email address, please use the following One-Time Passcode (OTP):
 
-    {otp}
+👉 {otp}
 
-    Best regards,  
-    The CraftEG Team
-    """
+If you didn’t request this, please ignore this message.
 
+Best regards,  
+The CraftEG Team  
+"""
     from_email = settings.DEFAULT_FROM_EMAIL
+    OneTimePassword.objects.create(user=user, otp=otp)
+    d_email = EmailMessage(subject=subject, body=email_body, from_email=from_email, to=[user.email])
+    d_email.send()
 
-    try:
-        send_formatted_email.delay(
-            subject=subject,
-            body=email_body,
-            from_email=from_email,
-            recipient_list=email  
-        )
-    except Exception:
-        # Fallback if Celery is not running
-        email_message = EmailMessage(
-            subject=subject,
-            body=email_body,
-            from_email=from_email,
-            to=[email]
-        )
-        email_message.send()
-
-    # Create an in-app notification
+    # ✨ NOTIFICATION: Inform the user that an OTP has been sent
     create_notification_for_user(
         user=user,
         message="Your verification passcode has been sent to your email."
@@ -61,49 +45,20 @@ def send_generated_otp_to_email(email, request):
 
 
 def send_normal_email(data):
-    """
-    Send a simple email (e.g., notifications or updates).
-    """
-    subject = data.get('email_subject', 'No Subject')
-    body = data.get('email_body', '')
-    recipient = data.get('to_email')
+    email = EmailMessage(
+        subject=data['email_subject'],
+        body=data['email_body'],
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[data['to_email']]
+    )
+    email.send()
 
-    if not recipient:
-        return
-
-    from_email = settings.DEFAULT_FROM_EMAIL
-
-    try:
-        send_formatted_email.delay(
-            subject=subject,
-            body=body,
-            from_email=from_email,
-            recipient_list=recipient  
-        )
-    except Exception:
-        email_message = EmailMessage(
-            subject=subject,
-            body=body,
-            from_email=from_email,
-            to=[recipient]
-        )
-        email_message.send()
-
-
-class Google:
-    """
-    Helper for verifying Google OAuth2 tokens.
-    """
+class Google():
     @staticmethod
     def validate(access_token):
         try:
-            from google.auth.transport import requests as google_requests
-            from google.oauth2 import id_token
-
-            id_info = id_token.verify_oauth2_token(
-                access_token, google_requests.Request()
-            )
-            if 'accounts.google.com' in id_info.get('iss', ''):
+            id_info=id_token.verify_oauth2_token(access_token, requests.Request())
+            if 'accounts.google.com' in id_info['iss']:
                 return id_info
-        except Exception:
-            return "The token is either invalid or has expired"
+        except:
+            return "the token is either invalid or has expired"
