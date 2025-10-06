@@ -5,6 +5,8 @@ from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import generics, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -455,3 +457,7 @@ class CouponViewSet(viewsets.ModelViewSet):
 class WarehouseListView(generics.ListAPIView):
     queryset = Warehouse.objects.all()
     serializer_class = WarehouseSerializer
+
+    @method_decorator(cache_page(60 * 60 * 24)) 
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
