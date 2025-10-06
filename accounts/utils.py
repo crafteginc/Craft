@@ -1,109 +1,88 @@
 import random
+import asyncio
 from django.core.mail import EmailMessage
 from django.conf import settings
+import requests
 from .models import User, OneTimePassword
-from .tasks import send_formatted_email
-from notifications.services import create_notification_for_user
-
+import requests
+from google.auth.transport import requests
+from google.oauth2 import id_token
+from accounts.models import User
+from django.contrib.auth import authenticate
+from django.conf import settings
+from rest_framework.exceptions import AuthenticationFailed
 
 def send_generated_otp_to_email(email, request):
-    """
-    Generate and send OTP to the user's email.
-    Uses Celery if available, falls back to direct send otherwise.
-    """
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return
-
-    # Generate a 4-digit OTP
+    subject = "One time Passcode for Email Verification"
     otp = random.randint(1000, 9999)
-    OneTimePassword.objects.create(user=user, otp=otp)
-
-    subject = "One-Time Passcode for Email Verification"
+    user = User.objects.get(email=email) 
     email_body = f"""
     Hi {user.first_name},
 
-    Thanks for signing up on CraftEG!
+    Thanks for signing up on CraftEG! 
 
-    Please verify your email using the following One-Time Passcode (OTP):
-
-    {otp}
+    Please verify your email using 
+    the following One-Time Passcode 
+    (OTP): {otp}
 
     Best regards,  
     The CraftEG Team
     """
-
-    from_email = settings.DEFAULT_FROM_EMAIL
-
-    try:
-        send_formatted_email.delay(
-            subject=subject,
-            body=email_body,
-            from_email=from_email,
-            recipient_list=email  
-        )
-    except Exception:
-        # Fallback if Celery is not running
-        email_message = EmailMessage(
-            subject=subject,
-            body=email_body,
-            from_email=from_email,
-            to=[email]
-        )
-        email_message.send()
-
-    # Create an in-app notification
-    create_notification_for_user(
-        user=user,
-        message="Your verification passcode has been sent to your email."
-    )
-
+    from_email = settings.EMAIL_HOST_USER
+    OneTimePassword.objects.create(user=user, otp=otp)
+    d_email = EmailMessage(subject=subject, body=email_body, from_email=from_email, to=[user.email])
+    d_email.send()
 
 def send_normal_email(data):
-    """
-    Send a simple email (e.g., notifications or updates).
-    """
-    subject = data.get('email_subject', 'No Subject')
-    body = data.get('email_body', '')
-    recipient = data.get('to_email')
-
-    if not recipient:
-        return
-
-    from_email = settings.DEFAULT_FROM_EMAIL
-
-    try:
-        send_formatted_email.delay(
-            subject=subject,
-            body=body,
-            from_email=from_email,
-            recipient_list=recipient  
-        )
-    except Exception:
-        email_message = EmailMessage(
-            subject=subject,
-            body=body,
-            from_email=from_email,
-            to=[recipient]
-        )
-        email_message.send()
-
-
-class Google:
-    """
-    Helper for verifying Google OAuth2 tokens.
-    """
+    email = EmailMessage(
+        subject=data['email_subject'],
+        body=data['email_body'],
+        from_email=settings.EMAIL_HOST_USER,
+        to=[data['to_email']]
+    )
+    email.send()
+class Google():
     @staticmethod
     def validate(access_token):
         try:
-            from google.auth.transport import requests as google_requests
-            from google.oauth2 import id_token
-
-            id_info = id_token.verify_oauth2_token(
-                access_token, google_requests.Request()
-            )
-            if 'accounts.google.com' in id_info.get('iss', ''):
+            id_info=id_token.verify_oauth2_token(access_token, requests.Request())
+            if 'accounts.google.com' in id_info['iss']:
                 return id_info
-        except Exception:
-            return "The token is either invalid or has expired"
+        except:
+            return "the token is either invalid or has expired"
+
+def register_social_user(provider, email, first_name, last_name):
+    old_user=User.objects.filter(email=email)
+    if old_user.exists():
+        if provider == old_user[0].auth_provider:
+            register_user=authenticate(email=email, password=settings.SOCIAL_AUTH_PASSWORD)
+
+            return {
+                'full_name':register_user.get_full_name,
+                'email':register_user.email,
+                'tokens':register_user.tokens()
+            }
+        else:
+            raise AuthenticationFailed(
+                detail=f"please continue your login with {old_user[0].auth_provider}"
+            )
+    else:
+        new_user={
+            'email':email,
+            'first_name':first_name,
+            'last_name':last_name,
+            'password':settings.SOCIAL_AUTH_PASSWORD
+        }
+        user=User.objects.create_user(**new_user)
+        user.auth_provider=provider
+        user.is_verified=True
+        user.save()
+        login_user=authenticate(email=email, password=settings.SOCIAL_AUTH_PASSWORD)
+       
+        tokens=login_user.tokens()
+        return {
+            'email':login_user.email,
+            'full_name':login_user.get_full_name,
+            "access_token":str(tokens.get('access')),
+            "refresh_token":str(tokens.get('refresh'))
+        }
