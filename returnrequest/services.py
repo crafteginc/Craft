@@ -4,12 +4,9 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-
-from accounts.models import Address
-from orders.models import Shipment, ShipmentItem
+from accounts.models import Address, User
+from orders.models import Shipment, ShipmentItem, Order, Product
 from orders.services import get_warehouse_by_name
-
-# Import the notification service
 from notifications.services import create_notification_for_user
 
 from .models import BalanceWithdrawRequest, ReturnRequest, Transaction
@@ -18,9 +15,12 @@ from .models import BalanceWithdrawRequest, ReturnRequest, Transaction
 class ReturnRequestService:
     @staticmethod
     @transaction.atomic
-    def create_return_request(
-        user, product, order, quantity, reason, image=None
+    def create_return_request_logic(
+        user_id, product_id, order_id, quantity, reason, image=None
     ) -> ReturnRequest:
+        user = get_object_or_404(User, id=user_id)
+        product = get_object_or_404(Product, id=product_id)
+        order = get_object_or_404(Order, id=order_id)
         customer_address = order.address
         supplier_address = get_object_or_404(Address, user=product.Supplier.user)
 
@@ -36,7 +36,6 @@ class ReturnRequestService:
             status=ReturnRequest.ReturnStatus.NEW,
         )
 
-        # ✨ NOTIFICATION: Inform the user and the supplier with image and context
         create_notification_for_user(
             user=user,
             message=f"Your return request for '{product.ProductName}' has been submitted.",
@@ -90,8 +89,7 @@ class ReturnRequestService:
                 status=Shipment.ShipmentStatus.In_Transmit
             )
             ShipmentItem.objects.create(shipment=shipment2, return_request=return_request, quantity=quantity)
-
-
+        
         return return_request
 
     @staticmethod
@@ -135,7 +133,6 @@ class ReturnRequestService:
 
         return_request.approve_by_supplier()
 
-        # ✨ NOTIFICATION: Inform the user of the approval
         create_notification_for_user(
             user=customer,
             message=f"Your return request for '{return_request.product.ProductName}' has been approved.",
@@ -160,7 +157,6 @@ class ReturnRequestService:
 
         return_request.reject_by_supplier()
 
-        # ✨ NOTIFICATION: Inform the user of the rejection
         create_notification_for_user(
             user=return_request.user,
             message=f"Your return request for '{return_request.product.ProductName}' has been rejected.",
@@ -187,7 +183,6 @@ class ReturnRequestService:
             shipments.update(status=Shipment.ShipmentStatus.CANCELLED)
             return_request.cancel()
         
-        # ✨ NOTIFICATION: Inform both user and supplier of the cancellation
         create_notification_for_user(
             user=return_request.user,
             message=f"You have successfully cancelled your return request for '{return_request.product.ProductName}'.",
@@ -211,15 +206,15 @@ class BalanceService:
             request.admin_notes = "Flagged for manual review due to high amount."
         else:
             request.risk_score = 10.0
-            #this transfer_status must be APPROVED but i turned it to AWAITING_APPROVAL to make all transfers manual temporarily
             request.transfer_status = BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL
         request.save()
 
     @staticmethod
     @transaction.atomic
-    def create_withdrawal_request(
-        user, amount: Decimal, transfer_number: str, transfer_type: str, notes: str = None
+    def create_withdrawal_request_logic(
+        user_id, amount: Decimal, transfer_number: str, transfer_type: str, notes: str = None
     ) -> BalanceWithdrawRequest:
+        user = get_object_or_404(User, id=user_id)
         if user.Balance < amount:
             raise ValidationError("Insufficient balance for this withdrawal.")
 
@@ -256,12 +251,14 @@ class BalanceService:
 
     @staticmethod
     @transaction.atomic
-    def approve_withdrawal(request: BalanceWithdrawRequest, admin_user):
+    def approve_withdrawal(request: BalanceWithdrawRequest, admin_user_id, admin_notes: str):
+        admin_user = get_object_or_404(User, id=admin_user_id)
         if request.transfer_status != BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL:
             raise ValidationError("This request is not awaiting approval.")
 
         request.transfer_status = BalanceWithdrawRequest.TransferStatus.APPROVED
-        request.admin_notes += f"\nManually approved by {admin_user.get_username()} on {timezone.now().strftime('%Y-%m-%d %H:%M')}."
+        request.admin_notes = admin_notes
+        request.admin_notes += f"\nManually approved by {admin_user.get_full_name} on {timezone.now().strftime('%Y-%m-%d %H:%M')}."
         request.save()
 
         create_notification_for_user(
@@ -272,7 +269,8 @@ class BalanceService:
 
     @staticmethod
     @transaction.atomic
-    def reject_withdrawal(request: BalanceWithdrawRequest, admin_user, admin_notes: str):
+    def reject_withdrawal(request: BalanceWithdrawRequest, admin_user_id, admin_notes: str):
+        admin_user = get_object_or_404(User, id=admin_user_id)
         if request.transfer_status not in [
             BalanceWithdrawRequest.TransferStatus.AWAITING_APPROVAL,
             BalanceWithdrawRequest.TransferStatus.REQUESTED,
@@ -282,6 +280,7 @@ class BalanceService:
         original_status = request.transfer_status
         request.transfer_status = BalanceWithdrawRequest.TransferStatus.REJECTED
         request.admin_notes = admin_notes
+        request.admin_notes += f"\nManually rejected by {admin_user.get_full_name} on {timezone.now().strftime('%Y-%m-%d %H:%M')}."
         request.save()
 
         create_notification_for_user(
@@ -309,6 +308,9 @@ class BalanceService:
 
         request.transfer_status = BalanceWithdrawRequest.TransferStatus.PROCESSING
         request.save()
+
+        # In a real scenario, this is where you would integrate with a payment gateway.
+        # For now, we'll simulate a successful transfer.
 
         request.transfer_status = BalanceWithdrawRequest.TransferStatus.COMPLETED
         request.save()

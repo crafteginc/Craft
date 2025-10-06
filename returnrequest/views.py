@@ -1,5 +1,4 @@
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
@@ -12,7 +11,16 @@ from .serializers import (BalanceWithdrawRequestSerializer,
                           ReturnRequestCreateSerializer,
                           ReturnRequestDetailSerializer,
                           ReturnRequestListSerializer, TransactionSerializer)
-from .services import BalanceService, ReturnRequestService
+from .tasks import (
+    process_supplier_approval_task,  
+    approve_withdrawal_task,
+    cancel_return_request_task,
+    create_return_request_task,
+    create_withdrawal_request_task,
+    reject_return_request_task,
+    reject_withdrawal_task
+)
+
 
 class ReturnRequestViewSet(viewsets.ModelViewSet):
     queryset = ReturnRequest.objects.all()
@@ -35,48 +43,43 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            return_request = ReturnRequestService.create_return_request(
-                user=self.request.user, **serializer.validated_data
-            )
-            response_serializer = ReturnRequestDetailSerializer(return_request, context={'request': request})
-            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-        except ValidationError as e:
-            return Response({"detail": e.message}, status=status.HTTP_400_BAD_REQUEST)
         
+        create_return_request_task.delay(
+            user_id=request.user.id,
+            product_id=serializer.validated_data['product'].id,
+            order_id=serializer.validated_data['order'].id,
+            quantity=serializer.validated_data['quantity'],
+            reason=serializer.validated_data['reason'],
+            image_path=serializer.validated_data.get('image')
+        )
+        
+        return Response(
+            {"message": "Your return request is being processed."},
+            status=status.HTTP_202_ACCEPTED
+        )
+
     @action(detail=False, methods=['get'])
     def new(self, request):
-        """
-        Returns a list of all new (pending approval) return requests.
-        """
         queryset = self.get_queryset().filter(status=ReturnRequest.ReturnStatus.NEW)
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def accepted(self, request):
-        """
-        Returns a list of all accepted (completed) return requests.
-        """
         queryset = self.get_queryset().filter(status=ReturnRequest.ReturnStatus.ACCEPTED)
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-            
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-    
+
     @action(detail=False, methods=['get'])
     def rejected(self, request):
-        """
-        Returns a list of all rejected or cancelled return requests.
-        """
         rejected_statuses = [
             ReturnRequest.ReturnStatus.REJECTED,
             ReturnRequest.ReturnStatus.CANCELLED
@@ -86,36 +89,25 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-            
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-    
+
     @action(detail=True, methods=['post'], permission_classes=[IsRequestSupplier])
     def approve(self, request, pk=None):
-        return_request = self.get_object()
-        try:
-            ReturnRequestService.process_supplier_approval(return_request)
-            return Response({'status': 'Return approved and funds processed.'})
-        except ValidationError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    
+        # ✨ FIX: Use the correct task name
+        process_supplier_approval_task.delay(pk)
+        return Response({'status': 'Approval is being processed.'}, status=status.HTTP_202_ACCEPTED)
+
     @action(detail=True, methods=['post'], permission_classes=[IsRequestSupplier])
     def reject(self, request, pk=None):
-        return_request = self.get_object()
-        try:
-            ReturnRequestService.reject_return_request(return_request)
-            return Response({'status': 'Return request has been rejected.'})
-        except ValidationError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        reject_return_request_task.delay(pk)
+        return Response({'status': 'Rejection is being processed.'}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=True, methods=['post'], permission_classes=[IsReturnRequestOwner])
     def cancel(self, request, pk=None):
-        return_request = self.get_object()
-        try:
-            ReturnRequestService.cancel_return_request(return_request)
-            return Response({'status': 'Return request and associated shipments have been cancelled.'})
-        except ValidationError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        cancel_return_request_task.delay(pk)
+        return Response({'status': 'Cancellation is being processed.'}, status=status.HTTP_202_ACCEPTED)
+
 
 class BalanceWithdrawRequestViewSet(mixins.CreateModelMixin,
                                       mixins.ListModelMixin,
@@ -133,37 +125,35 @@ class BalanceWithdrawRequestViewSet(mixins.CreateModelMixin,
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            withdrawal_request = BalanceService.create_withdrawal_request(
-                user=request.user, **serializer.validated_data
-            )
-            response_serializer = self.get_serializer(withdrawal_request)
-            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-        except ValidationError as e:
-            return Response({"detail": e.message}, status=status.HTTP_400_BAD_REQUEST)
+        
+        create_withdrawal_request_task.delay(
+            user_id=request.user.id,
+            amount=str(serializer.validated_data['amount']),  # Convert Decimal to string
+            transfer_number=serializer.validated_data['transfer_number'],
+            transfer_type=serializer.validated_data['transfer_type'],
+            notes=serializer.validated_data.get('notes')
+        )
+        
+        return Response(
+            {"message": "Your withdrawal request is being processed."},
+            status=status.HTTP_202_ACCEPTED
+        )
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def approve(self, request, pk=None):
-        withdrawal_request = self.get_object()
         admin_notes = request.data.get('admin_notes', '')
-        try:
-            BalanceService.approve_withdrawal(withdrawal_request, request.user, admin_notes)
-            return Response({'status': 'Withdrawal request approved.'})
-        except ValidationError as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        approve_withdrawal_task.delay(pk, request.user.id, admin_notes)
+        return Response({'status': 'Approval is being processed.'}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def reject(self, request, pk=None):
-        withdrawal_request = self.get_object()
         admin_notes = request.data.get('admin_notes')
         if not admin_notes:
             return Response({'detail': 'Admin notes are required for rejection.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        try:
-            BalanceService.reject_withdrawal(withdrawal_request, request.user, admin_notes)
-            return Response({'status': 'Withdrawal request rejected.'})
-        except ValidationError as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        reject_withdrawal_task.delay(pk, request.user.id, admin_notes)
+        return Response({'status': 'Rejection is being processed.'}, status=status.HTTP_202_ACCEPTED)
+
 
 class TransactionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = TransactionSerializer
