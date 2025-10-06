@@ -323,7 +323,7 @@ class OrderViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.Li
 
         return Response({
             "message": "Order Created Successfully",
-        }, status=status.HTTP_202_ACCEPTED)
+        }, status=status.HTTP_201_CREATED)
 
 
 class ShipmentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
