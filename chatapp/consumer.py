@@ -1,13 +1,15 @@
-import json
 import base64
+import json
 import secrets
-from django.core.files.base import ContentFile
-from channels.generic.websocket import AsyncWebsocketConsumer
+
 from channels.db import database_sync_to_async
-from .models import Message, Conversation
-from .serializers import MessageSerializer
-from notifications.services import create_notification_for_user
+from channels.generic.websocket import AsyncWebsocketConsumer
+from django.core.files.base import ContentFile
+
 from accounts.models import User
+from .tasks import send_chat_notification_task
+from .models import Conversation, Message
+from .serializers import MessageSerializer
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -44,14 +46,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             text=event["message"],
             attachment_data=event.get("attachment")
         )
-
         await self.send(text_data=json.dumps(message_data))
 
     @database_sync_to_async
     def create_message(self, text, attachment_data=None):
-        """
-        Creates a new message and sends a notification to the recipient.
-        """
         conversation = Conversation.objects.select_related('initiator', 'receiver').get(id=int(self.room_name))
         message_attachment = None
 
@@ -62,9 +60,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     base64.b64decode(file_str), name=f"{secrets.token_hex(8)}.{file_ext}"
                 )
                 message_attachment = file_data
-            except (KeyError, TypeError, base64.BinasciiError) as e:
+            except Exception as e:
                 print(f"Error handling attachment: {e}")
-                pass
 
         message = Message.objects.create(
             sender=self.user,
@@ -73,18 +70,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             conversation=conversation,
         )
 
-        # ✨ NOTIFICATION: Inform the other participant of the new message
         recipient = (
             conversation.receiver
             if conversation.initiator == self.user
             else conversation.initiator
         )
         
-        create_notification_for_user(
-            user=recipient,
-            message=f"You have a new message from {self.user.get_full_name}.",
-            related_object=conversation,
-            image=message.attachment # Pass the attachment as the notification image
+        # ✨ Offload notification to Celery
+        notification_message = f"You have a new message from {self.user.get_full_name}."
+        send_chat_notification_task.delay(
+            self.user.id, recipient.id, notification_message, conversation.id
         )
         
         return MessageSerializer(instance=message).data
