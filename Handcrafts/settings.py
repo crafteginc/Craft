@@ -38,7 +38,8 @@ DEBUG = env.bool('DEBUG', default=False)
 # A list of strings representing the host/domain names that this Django site can serve.
 ALLOWED_HOSTS = ['localhost', 'craft.up.railway.app', '127.0.0.1']
 # A list of trusted origins for unsafe requests (e.g., POST).
-CSRF_TRUSTED_ORIGINS = ["https://craft.up.railway.app", "http://craft.up.railway.app"]
+CSRF_TRUSTED_ORIGINS = ["https://craft.up.railway.app", "http://craft.up.railway.app",
+                        "https://crafteg.up.railway.app","http://crafteg.up.railway.app"]
 
 
 # ==============================================================================
@@ -323,6 +324,7 @@ USE_TZ = True
 # A list of origins that are authorized to make cross-site HTTP requests.
 CORS_ALLOWED_ORIGINS = [
     "https://craft.up.railway.app",
+    "https://crafteg.up.railway.app",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
