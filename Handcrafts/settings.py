@@ -36,7 +36,7 @@ DEBUG = env.bool('DEBUG', default=False)
 
 # --- Host Configuration ---
 # A list of strings representing the host/domain names that this Django site can serve.
-ALLOWED_HOSTS = ['localhost', 'craft.up.railway.app', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', 'craft.up.railway.app','crafteg.up.railway.app', '127.0.0.1']
 # A list of trusted origins for unsafe requests (e.g., POST).
 CSRF_TRUSTED_ORIGINS = ["https://craft.up.railway.app", "http://craft.up.railway.app",
                         "https://crafteg.up.railway.app","http://crafteg.up.railway.app"]
