@@ -76,9 +76,9 @@ class ProductSerializer(serializers.ModelSerializer):
     # Create the product instance
         product = Product.objects.create(**validated_data)
 
-        # Create product images
-        for image in uploaded_images:
-            ProImage.objects.create(product=product, image=image)
+        ProImage.objects.bulk_create([
+            ProImage(product=product, image=image) for image in uploaded_images
+        ])
 
         # Create product colors
         for color in uploaded_Colors:
@@ -111,8 +111,35 @@ class TrendingProductSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         if data['images']:
-            data['images'] = [data['images'][0]]  # Include only the first image
+            data['images'] = [data['images'][0]]  
         return data
+    
+class ProductAutocompleteSerializer(serializers.ModelSerializer):
+    """
+    Ultra-lightweight serializer for search suggestions.
+    """
+    class Meta:
+        model = Product
+        fields = ['ProductName'] 
+
+class ProductSearchSerializer(serializers.ModelSerializer):
+    """
+    A simplified serializer for product search results.
+    """
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['id', 'ProductName', 'UnitPrice', 'image']
+
+    def get_image(self, obj):
+        """
+        Returns the URL of the first image of the product.
+        """
+        first_image = obj.images.first()
+        if first_image and first_image.image:
+            return first_image.image.url
+        return None
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:

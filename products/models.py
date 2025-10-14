@@ -50,6 +50,13 @@ class Product(models.Model):
     height = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True,validators=(MinValueValidator(0.0), MaxValueValidator(1000.0)))
     watt = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True,validators=(MinValueValidator(0.0), MaxValueValidator(1000.0)))
     
+    class Meta:
+        indexes = [
+            models.Index(fields=['ProductName', 'ProductDescription']),
+            models.Index(fields=['UnitPrice']),
+            models.Index(fields=['Rating']),
+        ]
+        
     def __str__(self):
         return self.ProductName
 

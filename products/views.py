@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django_filters.rest_framework import DjangoFilterBackend
+from django.contrib.postgres.search import SearchVector
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import generics, permissions, status, viewsets
@@ -8,6 +9,7 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 
 from accounts.models import Follow
@@ -19,7 +21,8 @@ from .permissions import (IsSupplier, SupplierContractProvided,
 from .serializers import (CategorySerializer, CollectionCreateUpdateSerializer,
                           CollectionSerializer, LatestCollectionSerializer,
                           MatCategorySerializer, PostersSerializer,
-                          ProductSerializer, TrendingProductSerializer)
+                          ProductSerializer, TrendingProductSerializer,
+                          ProductAutocompleteSerializer,ProductSearchSerializer)
 from .tasks import (send_back_in_stock_notifications_task,
                     send_product_creation_notifications_task)
 
@@ -62,7 +65,6 @@ class ProductsViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ProductFilter
-    search_fields = ['ProductName', 'ProductDescription']
     ordering_fields = ['UnitPrice']
     pagination_class = StandardResultsSetPagination
 
@@ -74,6 +76,8 @@ class ProductsViewSet(viewsets.ModelViewSet):
         return [permission() for permission in permission_classes]
 
     def get_serializer_class(self):
+        if self.action == 'list' and self.request.query_params.get('search'):
+            return ProductSearchSerializer
         if self.action == 'retrieve':
             return ProductSerializer
         return self.serializer_class
@@ -81,6 +85,20 @@ class ProductsViewSet(viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 15)) 
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
+    
+    @action(detail=False, methods=['get'])
+    def suggestions(self, request):
+        query = request.query_params.get('query', '')
+        if len(query) < 3:
+            return Response([])
+
+        # ENHANCEMENT: Use SearchVector for better suggestions
+        products = Product.objects.annotate(
+            search=SearchVector('ProductName', 'ProductDescription'),
+        ).filter(search=query)[:10]
+        
+        serializer = ProductAutocompleteSerializer(products, many=True)
+        return Response(serializer.data)
     
     def perform_create(self, serializer):
         if not self.request.user.is_supplier:
