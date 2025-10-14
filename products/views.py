@@ -88,11 +88,10 @@ class ProductsViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def suggestions(self, request):
-        query = request.query_params.get('query', '')
+        query = request.query_params.get('search', '')
         if len(query) < 3:
             return Response([])
 
-        # ENHANCEMENT: Use SearchVector for better suggestions
         products = Product.objects.annotate(
             search=SearchVector('ProductName', 'ProductDescription'),
         ).filter(search=query)[:10]
